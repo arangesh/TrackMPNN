@@ -21,6 +21,7 @@ from metrics import *
 
 parser = argparse.ArgumentParser('Options for training Track-GCN models in PyTorch...')
 
+parser.add_argument('--dataset-path', type=str, default='/home/akshay/data/kitti-mots', help='path to dataset')
 parser.add_argument('--output-dir', type=str, default=None, help='output directory for model and logs')
 parser.add_argument('--snapshot', type=str, default=None, help='use a pre-trained model snapshot')
 parser.add_argument('--timesteps', type=int, default=10, metavar='TS', help='number of timesteps to train on')
@@ -81,17 +82,17 @@ class Dataset(data.Dataset):
         print('Preparing '+split+' dataset...')
         self.split = split
         self.timesteps = timesteps
-        self.dataset_path = os.path.join('/home/akshay/data/kitti-mots', 'training', 'gcn_features')
+        self.dataset_path = os.path.join(args.dataset_path, 'training', 'gcn_features')
         
         self.dataset = get_tracking_data(self.dataset_path, self.split, self.timesteps)
-        with open(os.path.join('/home/akshay/data/kitti-mots', 'gcn_features_mean.json')) as json_file:
+        with open(os.path.join(args.dataset_path, 'gcn_features_mean.json')) as json_file:
             data = json.load(json_file)
             mean = [data['score']]
             mean.extend(data['bbox_2d'])
             mean.extend(data['appearance'])
             mean.extend(data['convex_hull_3d'])
             self.mean = np.array([mean], dtype='float32')
-        with open(os.path.join('/home/akshay/data/kitti-mots', 'gcn_features_std.json')) as json_file:
+        with open(os.path.join(args.dataset_path, 'gcn_features_std.json')) as json_file:
             data = json.load(json_file)
             std = [data['score']]
             std.extend(data['bbox_2d'])
