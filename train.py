@@ -48,6 +48,8 @@ else:
 
 # This will set both cpu and gpu: https://pytorch.org/docs/stable/notes/randomness.html
 torch.manual_seed(args.seed)
+if args.cuda:
+    torch.cuda.manual_seed(args.seed)
 
 
 kwargs = {'batch_size': 1, 'shuffle': True, 'num_workers': 1}
@@ -83,6 +85,7 @@ def train(model, epoch):
         # compute the loss
         scores = model.forward(feats, node_adj, edge_adj)
         loss = F.nll_loss(scores, labels)
+        scores = torch.exp(scores)
         # compute the accuracy
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
         correct += float(pred.eq(labels.data).cpu().sum())
@@ -90,16 +93,17 @@ def train(model, epoch):
         # intialize graph and run first forward pass
         for t in range(t_init, t_end):
             # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, torch.exp(scores), y_pred, X, y, t, mode='train', cuda=args.cuda)
+            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='train', cuda=args.cuda)
             scores = model.forward(feats, node_adj, edge_adj)
             # compute the loss
             loss += F.nll_loss(scores, labels)
+            scores = torch.exp(scores)
             # compute the accuracy
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             correct += float(pred.eq(labels.data).cpu().sum())
             total += float(labels.size()[0])
-            #y_pred, feats, node_adj = prune_graph(feats, node_adj, torch.exp(scores), y_pred, t1, t2, threshold=0.5)
-        #tracks = decode_tracks(node_adj, torch.exp(scores), y_pred)
+            #y_pred, feats, node_adj, scores = prune_graph(feats, node_adj, scores, y_pred, t1, t2, threshold=0.5)
+        #tracks = decode_tracks(node_adj, scores, y_pred)
         #acc = create_mot_accumulator(tracks, y)
         #if acc is not None:
         #    motas.append(calc_mot_metrics([acc])['mota'])
@@ -156,6 +160,7 @@ def val(model, epoch):
             continue
         # compute the classification scores
         scores = model.forward(feats, node_adj, edge_adj)
+        scores = torch.exp(scores)
         # compute the accuracy
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
         correct += float(pred.eq(labels.data).cpu().sum())
@@ -163,14 +168,15 @@ def val(model, epoch):
         # intialize graph and run first forward pass
         for t in range(t_init, t_end):
             # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, torch.exp(scores), y_pred, X, y, t, mode='train', cuda=args.cuda)
+            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='train', cuda=args.cuda)
             scores = model.forward(feats, node_adj, edge_adj)
+            scores = torch.exp(scores)
             # compute the accuracy
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             correct += float(pred.eq(labels.data).cpu().sum())
             total += float(labels.size()[0])
-            #y_pred, feats, node_adj = prune_graph(feats, node_adj, torch.exp(scores), y_pred, min(t-10, 0), t-1, threshold=0.5)
-        tracks = decode_tracks(node_adj, torch.exp(scores), y_pred)
+            #y_pred, feats, node_adj, scores = prune_graph(feats, node_adj, scores, y_pred, min(t-10, 0), t-1, threshold=0.5)
+        tracks = decode_tracks(node_adj, scores, y_pred)
         acc = create_mot_accumulator(tracks, y)
         if acc is not None:
             motas.append(calc_mot_metrics([acc])['mota'])

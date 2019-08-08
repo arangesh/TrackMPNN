@@ -152,6 +152,7 @@ def prune_graph(feats, node_adj, labels_pred, y_pred, t1, t2, threshold=0.5):
     y_pred [N', 2]: Pruned y_pred
     feats [N', NUM_FEATS]: Pruned feats
     node_adj [N', N']: Pruned node_adj
+    labels_pred [N', 2]: Pruned labels_pred
     """
     assert (t1 <= t2), "t1 must be lesser than or equal to t2!"
     
@@ -173,8 +174,9 @@ def prune_graph(feats, node_adj, labels_pred, y_pred, t1, t2, threshold=0.5):
     feats    = feats[idx, :]
     node_adj = node_adj[idx, :]
     node_adj = node_adj[:, idx]
+    labels_pred   = labels_pred[idx, :]
 
-    return y_pred, feats, node_adj
+    return y_pred, feats, node_adj, labels_pred
 
 
 def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='test', cuda=True):
