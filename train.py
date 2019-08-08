@@ -1,27 +1,23 @@
 import argparse
-import numpy as np
 import os
-import time
-import glob
-import random
-import json
 import datetime
 import matplotlib.pyplot as plt
 import statistics
 
 import torch
+from torch.utils.data import DataLoader
 import torch.optim as optim
 from torch.autograd import Variable
-from torch.utils import data
 import torch.nn.functional as F
 
-from models import TrackMPNN
-from graph_ops import initialize_graph, update_graph, decode_tracks
-from metrics import create_mot_accumulator, calc_mot_metrics
+from models.track_mpnn import TrackMPNN
+from dataset.kitti_mots import KittiMOTSDataset
+from utils.graph import initialize_graph, update_graph, decode_tracks
+from utils.metrics import create_mot_accumulator, calc_mot_metrics
 
 parser = argparse.ArgumentParser('Options for training Track-MPNN models in PyTorch...')
 
-parser.add_argument('--dataset-path', type=str, default='/home/akshay/data/kitti-mots', help='path to dataset')
+parser.add_argument('--dataset-root-path', type=str, default='/home/akshay/data/kitti-mots', help='path to dataset')
 parser.add_argument('--output-dir', type=str, default=None, help='output directory for model and logs')
 parser.add_argument('--snapshot', type=str, default=None, help='use a pre-trained model snapshot')
 parser.add_argument('--timesteps', type=int, default=10, metavar='TS', help='number of timesteps to train on')
@@ -54,85 +50,9 @@ else:
 torch.manual_seed(args.seed)
 
 
-def get_tracking_data(dataset_path, split, timesteps):
-    seqs = os.listdir(dataset_path)
-    if split == 'train':
-        seqs = seqs[:-2]
-    elif split == 'val':
-        seqs = seqs[-2:]
-    elif split == 'trainval':
-        pass
-    else:
-        assert False, 'Invalid dataset split!'
-    num_frames = [len(os.listdir(os.path.join(dataset_path, x))) for x in seqs]
-
-    # Load tracking dataset; each row is [seq_no, st_fr, ed_fr]
-    dataset = []
-    for i, seq in enumerate(seqs):
-        for st_fr in range(0, num_frames[i], int(timesteps/2)):
-            dataset.append([seq, st_fr, min(st_fr+timesteps, num_frames[i])])
-
-    return dataset
-
-
-class Dataset(data.Dataset):
-    def __init__(self, split='train', timesteps=10):
-        'Initialization'
-        print('Preparing '+split+' dataset...')
-        self.split = split
-        self.timesteps = timesteps
-        self.dataset_path = os.path.join(args.dataset_path, 'training', 'gcn_features')
-        
-        self.dataset = get_tracking_data(self.dataset_path, self.split, self.timesteps)
-        with open(os.path.join(args.dataset_path, 'gcn_features_mean.json')) as json_file:
-            data = json.load(json_file)
-            mean = [data['score']]
-            mean.extend(data['bbox_2d'])
-            mean.extend(data['appearance'])
-            mean.extend(data['convex_hull_3d'])
-            self.mean = np.array([mean], dtype='float32')
-        with open(os.path.join(args.dataset_path, 'gcn_features_std.json')) as json_file:
-            data = json.load(json_file)
-            std = [data['score']]
-            std.extend(data['bbox_2d'])
-            std.extend(data['appearance'])
-            std.extend(data['convex_hull_3d'])
-            self.std = np.array([std], dtype='float32')
-        
-        print('Finished preparing '+split+' dataset!')
-
-    def __len__(self):
-        'Denotes the total number of samples'
-        return len(self.dataset)
-
-    def __getitem__(self, index):
-        'Generates one sample of data'
-        input_info = self.dataset[index]
-
-        X, y = [], []
-        for t, fr in enumerate(range(input_info[1], input_info[2])):
-            with open(os.path.join(self.dataset_path, input_info[0], '%.6d.json' % (fr,))) as json_file:
-                data = json.load(json_file)
-                for d in range(len(data['track_id'])):
-                    if data['track_id'][d] == []:
-                        continue
-                    x = []
-                    x.append(data['score'][d])
-                    x.extend(data['bbox_2d'][d])
-                    x.extend(data['appearance'][d])
-                    x.extend(data['convex_hull_3d'][d])
-                    X.append(x)
-                    y.append([t, data['track_id'][d]])
-
-        if len(X) != 0 and len(y) != 0:
-            X = (np.array(X, dtype='float32') - self.mean) / self.std # normalize/standardize features
-            y = np.array(y, dtype='int64')
-        return X, y
-
-
 kwargs = {'batch_size': 1, 'shuffle': True, 'num_workers': 1}
-train_loader = torch.utils.data.DataLoader(Dataset('train', args.timesteps), **kwargs)
-val_loader = torch.utils.data.DataLoader(Dataset('val', args.timesteps), **kwargs)
+train_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'train', args.timesteps), **kwargs)
+val_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'val', args.timesteps), **kwargs)
 
 # global var to store best validation accuracy across all epochs
 best_mota = 0.0
