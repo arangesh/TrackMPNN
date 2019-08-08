@@ -116,8 +116,10 @@ def initialize_graph(X, y, mode='test', cuda=True):
         labels[:num_dets_0] = y_0[:, 1] >= 0
         labels[num_dets_0+num_dets_0*num_dets_1:] = y_1[:, 1] >= 0
         for i in range(num_dets_0):
+            if y_0[i, 1] == -1: # if a false positive, no edge is positive
+                continue
             idx = torch.nonzero(y_1[:, 1] == y_0[i, 1])[:, 0]
-            if idx.size()[0] != 0:
+            if idx.size()[0] == 1:
                 labels[num_dets_0+i*num_dets_1+idx[0]] = 1
     else:
         labels = None
@@ -298,8 +300,10 @@ def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='te
         labels[num_dets_past+num_dets_active*num_dets_t:] = y_t[:, 1] >= 0
         if y_t.size > 0:
             for i in range(num_dets_active):
+                if y_active[i, 1] == -1: # if a false positive, no edge is positive
+                    continue
                 idx = np.where(y_t[:, 1] == y_active[i, 1])[0]
-                if idx.size != 0:
+                if idx.size == 1:
                     labels[num_dets_past+i*num_dets_t+idx] = 1
         labels = torch.from_numpy(labels)
         if cuda:
