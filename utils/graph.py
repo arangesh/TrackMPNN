@@ -306,7 +306,7 @@ def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='te
                     continue
                 idx = np.where(y_t[:, 1] == y_active[i, 1])[0]
                 if idx.size == 1:
-                    labels[num_dets_past+i*num_dets_t+idx] = 1
+                    labels[num_dets_past+i*num_dets_t+idx[0]] = 1
         labels = torch.from_numpy(labels)
         if cuda:
             labels = labels.cuda()
