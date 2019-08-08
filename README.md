@@ -4,7 +4,8 @@ This is the Pytorch implementation for TrackMPNN - an end-to-end trainable multi
 
 ## Installation
 1) Clone this repository.
-2) Install all requirements:
+2) Install PyTorch
+3) Install other requirements:
 ```shell
 pip install -r requirements.txt
 ```
@@ -12,7 +13,7 @@ or
 ```shell
 conda install --file requirements.txt
 ```
-3) Install [py-motmetrics](https://github.com/cheind/py-motmetrics) to keep track of MOT metrics during training and inference.
+4) Install [py-motmetrics](https://github.com/cheind/py-motmetrics) to keep track of MOT metrics during training and inference.
 
 Note that this repository additionally uses code from [PointNet.pytorch](https://github.com/fxia22/pointnet.pytorch) and [Graph Convolutional Networks in PyTorch](https://github.com/tkipf/pygcn)
 
