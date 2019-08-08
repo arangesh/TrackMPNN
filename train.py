@@ -39,7 +39,7 @@ if args.output_dir is None:
     args.output_dir = datetime.datetime.now().strftime("%I:%M%p-%B-%d-%Y")
     if args.snapshot is not None:
         args.output_dir = args.output_dir + '-w/snapshot-' + os.path.basename(args.snapshot)[:-4]
-    args.output_dir = os.path.join('..', 'experiments', args.output_dir)
+    args.output_dir = os.path.join('.', 'experiments', args.output_dir)
 
 if not os.path.exists(args.output_dir):
     os.makedirs(args.output_dir)
