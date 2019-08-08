@@ -6,7 +6,7 @@ from pygcn.layers import FactorGraphConvolution
 
 class TrackMPNN(nn.Module):
     def __init__(self, nfeat, nhid, nclass, dropout):
-        super(TrackGCN, self).__init__()
+        super(TrackMPNN, self).__init__()
         self.gc1 = FactorGraphConvolution(nfeat, nhid, bias=True, msg_type='concat')
         self.gc2 = FactorGraphConvolution(nhid, nhid, bias=True, msg_type='concat')
         self.gc3 = FactorGraphConvolution(nhid, nclass, bias=True, msg_type='concat')
