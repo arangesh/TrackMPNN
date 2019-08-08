@@ -279,7 +279,7 @@ def val(model, epoch):
 
 if __name__ == '__main__':
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackGCN(nfeat=1+4+64+10-10+64,
+    model = TrackMPNN(nfeat=1+4+64+10-10+64,
             nhid=args.hidden,
             nclass=2,
             dropout=False)
