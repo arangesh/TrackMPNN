@@ -19,7 +19,7 @@ from models import *
 from graph_ops import *
 from metrics import *
 
-parser = argparse.ArgumentParser('Options for training Track-GCN models in PyTorch...')
+parser = argparse.ArgumentParser('Options for training Track-MPNN models in PyTorch...')
 
 parser.add_argument('--dataset-path', type=str, default='/home/akshay/data/kitti-mots', help='path to dataset')
 parser.add_argument('--output-dir', type=str, default=None, help='output directory for model and logs')
