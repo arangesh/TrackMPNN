@@ -15,7 +15,7 @@ from torch.autograd import Variable
 from torch.utils import data
 import torch.nn.functional as F
 
-from models import TrackGCN
+from models import TrackMPNN
 from graph_ops import initialize_graph, update_graph, decode_tracks
 from metrics import create_mot_accumulator, calc_mot_metrics
 
