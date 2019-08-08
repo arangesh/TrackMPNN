@@ -7,12 +7,11 @@ from models.pygcn.layers import FactorGraphConvolution
 
 
 class TrackMPNN(nn.Module):
-    def __init__(self, nfeat, nhid, nclass, dropout):
+    def __init__(self, nfeat, nhid, nclass):
         super(TrackMPNN, self).__init__()
         self.gc1 = FactorGraphConvolution(nfeat, nhid, bias=True, msg_type='concat')
         self.gc2 = FactorGraphConvolution(nhid, nhid, bias=True, msg_type='concat')
         self.gc3 = FactorGraphConvolution(nhid, nclass, bias=True, msg_type='concat')
-        self.dropout = dropout
         self.pointnet = PointNetfeatsmall()
 
     def forward(self, x, node_adj, edge_adj):
@@ -27,7 +26,6 @@ class TrackMPNN(nn.Module):
             x = torch.cat((x[:, :-10], conv_hull_feat), dim=1) # (N, F-10+64)
         x = self.gc1(x, node_adj, edge_adj) # (N, 64)
         x = self.gc2(x, node_adj, edge_adj) # (N, 64)
-        x = F.dropout(x, self.dropout, training=self.training) # (N, 64)
         x = self.gc3(x, node_adj, edge_adj) # (N, 2)
 
         return F.log_softmax(x, dim=1)
