@@ -46,6 +46,13 @@ def create_mot_accumulator(tracks, y):
         dists = cdist(np.stack((oids, oids), 1), np.stack((hids, hids), 1))
         dists[dists > 0] = 1
         acc.update(otracks, htracks, dists, frameid=t)
+        
+    # make sure that desired metrics can be calculated
+    try:
+        mh = mm.metrics.create()
+        summary = mh.compute(acc, metrics=mm.metrics.motchallenge_metrics, name='acc')
+    except:
+        return None
 
     return acc
 
