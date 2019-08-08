@@ -21,5 +21,5 @@ Note that this repository additionally uses code from [PointNet.pytorch](https:/
 TrackMPNN can be trained using [this](https://github.com/arangesh/TrackMPNN/blob/master/train.py) script as follows:
 
 ```shell
-python train.py --dataset=/path/to/dataset/ --timesteps=10
+python train.py --dataset-path=/path/to/dataset/ --timesteps=10
 ```
