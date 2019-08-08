@@ -15,9 +15,9 @@ from torch.autograd import Variable
 from torch.utils import data
 import torch.nn.functional as F
 
-from models import *
-from graph_ops import *
-from metrics import *
+from models import TrackMPNN
+from graph_ops import initialize_graph, update_graph, decode_tracks
+from metrics import create_mot_accumulator, calc_mot_metrics
 
 parser = argparse.ArgumentParser('Options for training Track-MPNN models in PyTorch...')
 
@@ -50,6 +50,7 @@ if not os.path.exists(args.output_dir):
 else:
     assert False, 'Output directory already exists!'
 
+# This will set both cpu and gpu: https://pytorch.org/docs/stable/notes/randomness.html
 torch.manual_seed(args.seed)
 if args.cuda:
     torch.cuda.manual_seed(args.seed)
@@ -288,7 +289,7 @@ if __name__ == '__main__':
             nclass=2,
             dropout=False)
     if args.snapshot is not None:
-        model.load_state_dict(torch.load(snapshot), strict=False)
+        model.load_state_dict(torch.load(args.snapshot), strict=False)
     if args.cuda:
         model.cuda()
     print(model)
