@@ -374,7 +374,8 @@ def decode_tracks(node_adj, labels_pred, y_pred):
     id_offset = np.cumsum(y_pred[:, 0] == -1)
     id_offset_det = id_offset[y_pred[:, 0] != -1]
     for i in range(y_pred.shape[0]):
-        if (y_pred[i, 0] == -1) or visited[i]: # do not start a track from an edge or a node that has already been visited
+    	# do not start a track from an edge, a false positive or a node that has already been visited
+        if (y_pred[i, 0] == -1) or (labels_pred[i, 1] < 0.5) or visited[i]:
             continue
         track_ids = []
         cur_id = i-id_offset[i]
