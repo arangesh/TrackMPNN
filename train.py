@@ -30,7 +30,6 @@ def train(model, epoch):
     epoch_loss = list()
     correct = 0.
     total = 0.
-    # motas = []
     model.train()
     for b_idx, (X, y) in enumerate(train_loader):
         if type(X) == type([]) or type(y) == type([]):
