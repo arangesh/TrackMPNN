@@ -68,11 +68,6 @@ def train(model, epoch):
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             correct += float(pred.eq(labels.data).cpu().sum())
             total += float(labels.size()[0])
-            # y_pred, feats, node_adj, scores = prune_graph(feats, node_adj, scores, y_pred, t1, t2, threshold=0.5)
-        # tracks = decode_tracks(node_adj, scores, y_pred)
-        # acc = create_mot_accumulator(tracks, y)
-        # if acc is not None:
-        #    motas.append(calc_mot_metrics([acc])['mota'])
 
         epoch_loss.append(loss.item())
         loss.backward()
@@ -94,14 +89,11 @@ def train(model, epoch):
         f.write("\n------------------------\nAverage loss for epoch = {:.2f}\n".format(avg_loss))
 
     train_accuracy = 100.0 * correct / total
-    # train_mota = 100.0*statistics.mean(motas)
     print("Accuracy for epoch = {:.2f}%\n------------------------".format(train_accuracy))
-    # print("MOTA for epoch = {:.2f}%\n------------------------".format(train_mota))
     with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
         f.write("Accuracy for epoch = {:.2f}%\n------------------------\n".format(train_accuracy))
-        # f.write("MOTA for epoch = {:.2f}%\n------------------------\n".format(train_mota))
 
-    return model, avg_loss, train_accuracy, None
+    return model, avg_loss, train_accuracy
 
 
 # validation function
@@ -195,16 +187,14 @@ if __name__ == '__main__':
 
     fig3, ax3 = plt.subplots()
     plt.grid(True)
-    ax3.plot([], 'g', label='Train MOTA')
     ax3.plot([], 'b', label='Validation MOTA')
     ax3.legend()
 
-    train_acc, val_acc, train_mota, val_mota = list(), list(), list(), list()
+    train_acc, val_acc, val_mota = list(), list(), list()
 
     for i in range(1, args.epochs + 1):
-        model, avg_loss, acc, mota = train(model, i)
+        model, avg_loss, acc = train(model, i)
         train_acc.append(acc)
-        train_mota.append(mota)
 
         # plot the loss
         train_loss.append(avg_loss)
@@ -220,7 +210,6 @@ if __name__ == '__main__':
         ax2.plot(val_acc, 'b', label='Validation accuracy')
         fig2.savefig(os.path.join(args.output_dir, 'train_val_accuracy.jpg'))
 
-        ax3.plot(train_mota, 'g', label='Train MOTA')
         ax3.plot(val_mota, 'b', label='Validation MOTA')
-        fig3.savefig(os.path.join(args.output_dir, 'train_val_mota.jpg'))
+        fig3.savefig(os.path.join(args.output_dir, 'val_mota.jpg'))
     plt.close('all')
