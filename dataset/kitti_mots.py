@@ -51,11 +51,15 @@ class KittiMOTSDataset(data.Dataset):
                 for d in range(len(data['track_id'])):
                     if not data['track_id'][d]:
                         continue
+                    # each feature vector for a detection in the sequence contains:
+                    # [2d_bbox_score (1), 2d_bbox_coords (4), keypoint_appearance_feats (64), 3d_convec_hull_coords (10)]
                     datum = [data['score'][d]]
                     datum.extend(data['bbox_2d'][d])
                     datum.extend(data['appearance'][d])
                     datum.extend(data['convex_hull_3d'][d])
                     features.append(datum)
+                    # target labels for each detection in the sequence contains:
+                    # [frame_no (1), track_id (1)]
                     labels.append([t, data['track_id'][d]])
 
         if len(features) != 0 and len(labels) != 0:
