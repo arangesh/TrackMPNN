@@ -30,7 +30,7 @@ if args.output_dir is None:
         args.output_dir = args.output_dir + '-with-tp-classifier'
     if args.snapshot is not None:
         args.output_dir = args.output_dir + '-with-snapshot-' + os.path.basename(args.snapshot)[:-4]
-    args.output_dir = os.path.join('..', 'experiments', args.output_dir)
+    args.output_dir = os.path.join('.', 'experiments', args.output_dir)
 
 if not os.path.exists(args.output_dir):
     os.makedirs(args.output_dir)
