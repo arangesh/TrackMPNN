@@ -26,13 +26,13 @@ args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 if args.output_dir is None:
     args.output_dir = datetime.now().strftime("%I:%M%p-%B-%d-%Y")
-    if args.tp_classifier:
-        args.output_dir = args.output_dir + '-with-tp-classifier'
-    if args.snapshot is not None:
-        args.output_dir = args.output_dir + '-with-snapshot-' + os.path.basename(args.snapshot)[:-4]
     args.output_dir = os.path.join('.', 'experiments', args.output_dir)
 
 if not os.path.exists(args.output_dir):
     os.makedirs(args.output_dir)
 else:
     assert False, 'Output directory already exists!'
+
+# store config in output directory
+with open(os.path.join(args.output_dir, 'config.json'), 'w') as f:
+    json.dump(vars(args), f)
