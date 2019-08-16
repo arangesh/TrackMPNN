@@ -5,7 +5,6 @@ import statistics
 import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
-from torch.autograd import Variable
 import torch.nn.functional as F
 
 from models.track_mpnn import TrackMPNN
@@ -36,8 +35,8 @@ def train(model, epoch):
             continue
         if args.cuda:
             X, y = X.cuda(), y.cuda()
-        # convert the data and targets into Variable and cuda form
-        X, y = Variable(X, requires_grad=True), Variable(y)
+        # backpropagate gradient through feature matrix
+        X.requires_grad = True
 
         # train the network
         optimizer.zero_grad()
@@ -124,7 +123,6 @@ def val(model, epoch):
             continue
         if args.cuda:
             X, y = X.cuda(), y.cuda()
-        X, y = Variable(X), Variable(y)
 
         # initaialize output array tracks to -1s
         y_out = y.squeeze(0).detach().cpu().numpy().astype('int64')
