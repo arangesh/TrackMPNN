@@ -67,9 +67,8 @@ def calc_mot_metrics(accs):
     [idf1 idp idr recall precision num_unique_objects mostly_tracked partially_tracked 
     mostly_lost num_false_positives num_misses num_switches num_fragmentations mota motp]
     """
-
     # compute and display MOT metrics
     mh = mm.metrics.create()
     summary = mh.compute_many(accs, metrics=mm.metrics.motchallenge_metrics, names=[str(x) for x in range(len(accs))], generate_overall=True)
-    # strsummary = mm.io.render_summary(summary, formatters=mh.formatters, namemap=mm.io.motchallenge_metric_names)
+
     return summary.to_dict('records')[-1]
