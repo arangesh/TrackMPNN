@@ -332,73 +332,161 @@ def prune_graph(feats, node_adj, labels, scores, y_pred, t_st, t_ed, threshold=0
     return y_pred, feats, node_adj, labels, scores
 
 
-def decode_tracks(node_adj, labels_pred, y_pred):
+def decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_upto, cuda=True):
     """
-    This is a function for decoding tracks from network outputs
+    This is a function for decoding and finalizing tracks for early parts of the graph,
+    and removing said parts from the graph for all future operations.
+    This function facilitates the use of the tracker on a rolling window basis, 
+    where the timesteps that are processed keep moving forward with a fixed window size,
+    while carrying forward tracks from the past.
 
+    feats [N, NUM_FEATS]: Input features for each node in graph (includes detection
+                          nodes and edge nodes (0s))
     node_adj [N, N]: Adjacency matrix for updating detection nodes
-    labels_pred [N, 2]: Predicted binary class probabilities for each node
-    y_pred [N, 2]: Array where each row is [ts, ass_id] indicating the associated detection
-                   for each node i.e. ith row entry indicates the timestep of current node
-                   and id of next associated detection node
+    labels [N,]: Binary class for each node
+    scores [N, 2]: Predicted binary class probabilities for each node
+    y_pred [N, 3]: Array where each row is [ts, det_id, ass_id] indicating the associated detection
+                   for each node i.e. ith row entry indicates the timestep of current node, detection
+                   id of the current node, and the detection id of next associated node
+    y_out [NUM_DETS, 2]: Array of past tracks where each row is [ts, track_id]
+    t_upto [scalar]: Timestep upto which tracks are to be decoded and then removed from the graph
 
-    Returns: 
-    tracks list([N',]): A list of 1D lists of detection IDs for each track.
+    Returns: (Typically N' < N)
+    y_pred [N', 3]: Updated y_pred
+    y_out [NUM_DETS, 2]: Updated y_out
+    feats [N', NUM_FEATS]: Updated feats
+    node_adj [N', N']: Updated node_adj
+    labels [N',]: Updated labels
+    scores [N', 2]: Updated scores
     """
     # move everything to CPU
     node_adj = node_adj.detach().cpu().numpy().astype('float32')
-    labels_pred = labels_pred.detach().cpu().numpy().astype('float32')
+    if labels is not None:
+        labels = labels.detach().cpu().numpy().astype('int64')
+    scores = scores.detach().cpu().numpy().astype('float32')
     y_pred = y_pred.detach().cpu().numpy().astype('int64')
 
     # reset diagonals to zeros
     diag_ind = np.diag_indices(node_adj.shape[0])
     node_adj[diag_ind] = 0
 
-    # [y_pred_t-1, node_adj_t-1, labels_t-1] <-- update(labels_pred_t-1)
-    id_offset = np.cumsum(y_pred[:, 0] == -1)
-    y_pred[:, 1] = -1
+    # [y_pred_t-1, node_adj_t-1, labels_t-1] <-- update(scores_t-1)
+    y_pred[:, 2] = -1
     del_ids = np.array([], dtype='int64')
     for i in range(y_pred.shape[0]):
         if y_pred[i, 0] < 0: # if edge node, continue
             continue
-        if labels_pred[i, 1] >= 0.5: # if detection is a true positive
+        if scores[i, 1] >= 0.5: # if detection is a true positive
             ids = np.where(node_adj[i+1:, i])[0]+i+1 # find edge nodes it is connected to
-            idx = np.where(labels_pred[ids, 1] >= 0.5)[0] # find edges with +ve label
-            if idx.size > 0: # if association exists
-                idx = ids[idx] # actual indices of all +ve edges
-                idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # first find detection nodes
-                idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after positive edge
-                idx = idx[idx < idx_next_det[0]] # retain indices from nearest timestep only
+            idx = np.where(scores[ids, 1] >= 0.5)[0] # find edges with +ve label
+            idx = ids[idx] # actual indices of all +ve edges
+            # only retain edges that connect to a true positive detection
+            idx = np.array([x for x in idx if scores[np.where(node_adj[x, :])[0][-1], 1] >= 0.5], dtype='int64')
+            if idx.size > 0: # if positive association exists
+                idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # find all detection nodes
+                idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after first positive edge
+                idx = idx[idx < idx_next_det[0]] # retain edges only from nearest timestep 
 
-                best_idx = idx[np.argmax(labels_pred[idx, 1])] # assign to edge with highest prob in nearest timestep
-                y_pred[i, 1] = np.where(node_adj[best_idx, :])[0][-1] # find detection node at other end of edge
-                y_pred[i, 1] = y_pred[i, 1] - id_offset[y_pred[i, 1]] # offset detection index to account for edge nodes
+                best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
+                # get detection index to which highest scoring edge connects, and associate to it
+                y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1] 
 
                 # remove all edges after nearest timestep with positive edge
                 del_ids = np.concatenate((del_ids, ids[ids > idx_next_det[0]]), 0)
 
+    feats = feats[np.delete(np.arange(y_pred.shape[0]), del_ids, 0), :]
     node_adj = np.delete(node_adj, del_ids, 0)
     node_adj = np.delete(node_adj, del_ids, 1)
+    if labels is not None:
+        labels = np.delete(labels, del_ids, 0)
+    scores = np.delete(scores, del_ids, 0)
     y_pred = np.delete(y_pred, del_ids, 0)
-    labels_pred = np.delete(labels_pred, del_ids, 0)
 
-    tracks = []
-    visited = np.zeros((y_pred.shape[0],), dtype='int64')
-    id_offset = np.cumsum(y_pred[:, 0] == -1)
-    id_offset_det = id_offset[y_pred[:, 0] != -1]
-    for i in range(y_pred.shape[0]):
-    	# do not start a track from an edge, a false positive or a node that has already been visited
-        if (y_pred[i, 0] == -1) or (labels_pred[i, 1] < 0.5) or visited[i]:
+    # update and decide on (finalize) tracking predictions upto timestep t_upto
+    next_track_id = np.amax(y_out[:, 1])+1 # track id for next new track
+    visited = np.zeros((y_out.shape[0],), dtype='int64') # keep track of visited detection nodes
+    for i in range(y_out.shape[0]):
+        det_id = i
+        node_id = np.where(y_pred[:, 1] == det_id)[0]
+        # if track has already been finalized, continue
+        if node_id.size == 0:
+            visited[det_id] = 1
             continue
-        track_ids = []
-        cur_id = i-id_offset[i]
-        track_ids.append(cur_id)
-        while True:
-            visited[cur_id+id_offset_det[cur_id]] = 1
-            if y_pred[cur_id+id_offset_det[cur_id], 1] == -1:
-                break
-            cur_id = y_pred[cur_id+id_offset_det[cur_id], 1]
-            track_ids.append(cur_id)
-        tracks.append(track_ids)
+        # do not start a track from a node after t_upto, or from a node that's a false positive
+        if (y_pred[node_id, 0] >= t_upto) or (scores[node_id, 1] < 0.5):
+            visited[det_id] = 1
+            continue
+        # do not start a track from a node that's already been visited
+        if visited[det_id]:
+            continue
 
-    return tracks
+        # figure out if this is the start of a new track or continuation of existing track
+        if y_out[det_id, 1] == -1:
+            cur_track_id = next_track_id
+            next_track_id += 1
+        else:
+            cur_track_id = y_out[det_id, 1]
+        # start accumulating tracks from current detection node
+        while True:
+            visited[det_id] = 1 # mark node as visited
+            y_out[det_id, 1] = cur_track_id # add node to track
+            if y_pred[node_id, 2] == -1: # if end of track, exit
+                break
+            # exit if successive nodes are at or after t_upto
+            if y_out[det_id, 0] >= t_upto and y_out[y_pred[node_id, 2], 0] >= t_upto:
+                break
+            det_id = y_pred[node_id, 2] # move to next node in track
+            node_id = np.where(y_pred[:, 1] == det_id)[0]
+
+    # delete parts of graph upto timestep t_upto
+    max_id = np.where(np.logical_and(y_pred[:, 0] < t_upto, y_pred[:, 0] != -1))[0]
+    if max_id.size == 0:
+        max_id = 0
+    else:
+        max_id = max_id[-1] # get index of last detection before t_upto
+    del_ids = np.arange(max_id, dtype='int64')
+    # retain unassociated TP dets, and for other dets-remove edges to dets after and at t_upto
+    retain_ids = np.array([], dtype='int64')
+    for idx in range(max_id):
+        if y_pred[idx, 0] == -1: # if it is an edge node
+            continue
+        else: # if it is a detection node
+            if y_pred[idx, 2] == -1 and scores[idx, 1] >= 0.5: # if TP and unassociated
+                retain_ids = np.append(retain_ids, idx) # store id to retain this node
+            else:
+                # find and remove all edges connected to detection nodes after and at t_upto
+                idx_edges = np.where(node_adj[:, idx])[0]
+                idx_edges = idx_edges[idx_edges > max_id]
+                del_ids = np.concatenate((del_ids, idx_edges), 0)
+    del_ids = np.delete(del_ids, retain_ids, 0) # remove ids to be retained from those to be deleted
+
+    feats = feats[np.delete(np.arange(y_pred.shape[0]), del_ids, 0), :]
+    node_adj = np.delete(node_adj, del_ids, 0)
+    node_adj = np.delete(node_adj, del_ids, 1)
+    if labels is not None:
+        labels = np.delete(labels, del_ids, 0)
+    scores = np.delete(scores, del_ids, 0)
+    y_pred = np.delete(y_pred, del_ids, 0)
+
+    # take everything back to GPU
+    y_pred = torch.from_numpy(y_pred)
+    if cuda:
+        y_pred = y_pred.cuda()
+    node_adj = torch.from_numpy(node_adj)
+    if cuda:
+        node_adj = node_adj.cuda()
+    I_edge = torch.diag(y_pred[:, 0] == -1).float()
+    if cuda:
+        I_edge = I_edge.cuda()
+        I_node = torch.eye(y_pred.size()[0]).cuda() - I_edge
+    else:
+        I_node = torch.eye(y_pred.size()[0]) - I_edge
+    node_adj = node_adj + I_node
+    labels = torch.from_numpy(labels)
+    if cuda:
+        labels = labels.cuda()
+    scores = torch.from_numpy(scores)
+    if cuda:
+        scores = scores.cuda()
+
+    return y_pred, y_out, feats, node_adj, labels, scores
