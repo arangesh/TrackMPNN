@@ -32,21 +32,21 @@ def normalize(adj):
 def initialize_graph(X, y, mode='test', cuda=True):
     """
     This is a function for initializing the graph on which to perform
-    graph convolutional operations
+    message passing operations.
 
     X [B, NUM_DETS, NUM_FEATS]: Features for all detections in a sequence
     y [B, NUM_DETS, 2]: Array where each row is [ts, track_id]
 
     Returns:
-    y_pred [N, 2]: Array where each row is [ts, ass_id] indicating the associated detection
-                   for each node i.e. ith row entry indicates the timestep of current node
-                   and id of next associated detection node
+    y_pred [N, 3]: Array where each row is [ts, det_id, ass_id] indicating the associated detection
+                   for each node i.e. ith row entry indicates the timestep of current node, detection
+                   id of the current node, and the detection id of next associated node
     feats [N, NUM_FEATS]: Input features for each node in graph (includes detection
                           nodes and edge nodes (0s))
     node_adj [N, N]: Adjacency matrix for updating detection
     edge_adj [N, N]: Adjacency matrix for updating edge nodes
     labels [N,]: Binary class for each node
-    t2+1 scalar: Scalar value indicating next timestep to be processed
+    t1+1 scalar: Scalar value indicating next timestep to be processed
     tN+1 scalar: Scalar value indicating the last timestep in the sequence
     """
     # remove dummy batch node (only support batch size 1)
@@ -55,42 +55,44 @@ def initialize_graph(X, y, mode='test', cuda=True):
 
     # find first two non-empty times to initialize graph
     times = torch.sort(y[0, :, 0])[0]
-    t1 = t2 = times[0]
+    t0 = t1 = times[0]
     tN = times[-1]
     for t in times:
-        if t != t1:
-            t2 = t
+        if t != t0:
+            t1 = t
             break
-    if t1 == t2:
+    t0, t1, tN = int(t0.item()), int(t1.item()), int(tN.item())
+    if t0 == t1:
         return None, None, None, None, None, None, None
 
-
-    ids_0 = torch.nonzero(y[0, :, 0] == t1)[:, 0]
-    ids_1 = torch.nonzero(y[0, :, 0] == t2)[:, 0]
-    num_dets_0 = ids_0.size()[0]
-    num_dets_1 = ids_1.size()[0]
+    ids_t0 = torch.nonzero(y[0, :, 0] == t0)[:, 0]
+    ids_t1 = torch.nonzero(y[0, :, 0] == t1)[:, 0]
+    num_dets_t0 = ids_t0.size()[0]
+    num_dets_t1 = ids_t1.size()[0]
 
     # initialize y_pred
-    y_pred = -1*torch.ones((num_dets_0+num_dets_0*num_dets_1+num_dets_1, 2), dtype=torch.int64) # (N0+N1+N0*N1, 2)
+    y_pred = -1*torch.ones((num_dets_t0+num_dets_t0*num_dets_t1+num_dets_t1, 3), dtype=torch.int64) # (N0+N1+N0*N1, 3)
     if cuda:
         y_pred = y_pred.cuda()
-    y_pred[:num_dets_0, 0] = t1
-    y_pred[num_dets_0+num_dets_0*num_dets_1:, 0] = t2
+    y_pred[:num_dets_t0, 0] = t0
+    y_pred[num_dets_t0+num_dets_t0*num_dets_t1:, 0] = t1
+    y_pred[:num_dets_t0, 1] = ids_t0
+    y_pred[num_dets_t0+num_dets_t0*num_dets_t1:, 1] = ids_t1
 
     # initialize feats
-    X_edge = torch.zeros((num_dets_0*num_dets_1, X.size()[2])) # (N0*N1, NUM_FEATS)
+    X_edge = torch.zeros((num_dets_t0*num_dets_t1, X.size()[2])) # (N0*N1, NUM_FEATS)
     if cuda:
         X_edge = X_edge.cuda()
-    feats = torch.cat((X[0, ids_0, :], X_edge, X[0, ids_1, :]), 0) # (N0+N0*N1+N1, NUM_FEATS)
+    feats = torch.cat((X[0, ids_t0, :], X_edge, X[0, ids_t1, :]), 0) # (N0+N0*N1+N1, NUM_FEATS)
 
     # initialize node_adj
     node_adj = torch.zeros(feats.size()[0], feats.size()[0])
     if cuda:
         node_adj = node_adj.cuda()
-    for i in range(num_dets_0):
-        node_adj[num_dets_0+i*num_dets_1:num_dets_0+(i+1)*num_dets_1, i] = 1
-    for i in range(num_dets_1):
-        node_adj[num_dets_0+i:num_dets_0+num_dets_0*num_dets_1:num_dets_1, num_dets_0+num_dets_0*num_dets_1+i] = -1
+    for i in range(num_dets_t0):
+        node_adj[num_dets_t0+i*num_dets_t1:num_dets_t0+(i+1)*num_dets_t1, i] = 1
+    for i in range(num_dets_t1):
+        node_adj[num_dets_t0+i:num_dets_t0+num_dets_t0*num_dets_t1:num_dets_t1, num_dets_t0+num_dets_t0*num_dets_t1+i] = -1
     # initialize edge_adj
     edge_adj = torch.t(node_adj) # tranpose node_adj to get edge_adj
     # retain node and edge informations
@@ -108,16 +110,16 @@ def initialize_graph(X, y, mode='test', cuda=True):
         labels = torch.zeros((feats.size()[0],), dtype=torch.int64) # (1, N0+N0*N1+N1)
         if cuda:
             labels = labels.cuda()
-        y_0 = y[0, ids_0, :] # (N0, 2)
-        y_1 = y[0, ids_1, :] # (N1, 2)
-        labels[:num_dets_0] = y_0[:, 1] >= 0
-        labels[num_dets_0+num_dets_0*num_dets_1:] = y_1[:, 1] >= 0
-        for i in range(num_dets_0):
-            if y_0[i, 1] == -1: # if a false positive, no edge is positive
+        y_t0 = y[0, ids_t0, :] # (N0, 2)
+        y_t1 = y[0, ids_t1, :] # (N1, 2)
+        labels[:num_dets_t0] = y_t0[:, 1] >= 0
+        labels[num_dets_t0+num_dets_t0*num_dets_t1:] = y_t1[:, 1] >= 0
+        for i in range(num_dets_t0):
+            if y_t0[i, 1] == -1: # if a false positive, no edge is positive
                 continue
-            idx = torch.nonzero(y_1[:, 1] == y_0[i, 1])[:, 0]
+            idx = torch.nonzero(y_t1[:, 1] == y_t0[i, 1])[:, 0]
             if idx.size()[0] == 1:
-                labels[num_dets_0+i*num_dets_1+idx[0]] = 1
+                labels[num_dets_t0+i*num_dets_t1+idx[0]] = 1
     else:
         labels = None
 
@@ -128,7 +130,7 @@ def initialize_graph(X, y, mode='test', cuda=True):
     if labels is not None:
         labels = Variable(labels, requires_grad=False)
 
-    return y_pred, feats, node_adj, edge_adj, labels, t2+1, tN+1
+    return y_pred, feats, node_adj, edge_adj, labels, t1+1, tN+1
 
 
 def prune_graph(feats, node_adj, labels_pred, y_pred, t1, t2, threshold=0.5):
