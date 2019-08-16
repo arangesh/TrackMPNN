@@ -10,12 +10,9 @@ for t = 2:T // because intialization step accounts for t=0 and t=1
     loss += network.forward(G)
     if condition:
         prune_graph() // helps reduce memory usage and streamline information flow
+    G, y_out = decode_tracks(G, y_out) // decode and finalize tracks upto a certain timestep and remove those nodes/edges from graph
 end
 network.backward(loss)
-decode_tracks(G)
-
-Note that decode_tracks() can also be called at any intermediate timestep
-after the network.forward() has been called.
 """
 import torch
 import numpy as np
