@@ -8,7 +8,7 @@ from utils.dataset import get_tracking_data
 
 class KittiMOTSDataset(data.Dataset):
     def __init__(self, dataset_root_path=None, split='train', timesteps=5):
-        'Initialization'
+        """Initialization"""
 
         if dataset_root_path is None:
             raise FileNotFoundError("Dataset Path needs to be valid")
@@ -37,11 +37,11 @@ class KittiMOTSDataset(data.Dataset):
         print('Finished preparing ' + split + ' dataset!')
 
     def __len__(self):
-        'Denotes the total number of samples'
+        """Denotes the total number of samples"""
         return len(self.dataset)
 
     def __getitem__(self, index):
-        'Generates one sample of data'
+        """Generates one sample of data"""
         input_info = self.dataset[index]
 
         features, labels = [], []
@@ -49,7 +49,7 @@ class KittiMOTSDataset(data.Dataset):
             with open(os.path.join(self.dataset_path, input_info[0], '%.6d.json' % (fr,))) as json_file:
                 data = json.load(json_file)
                 for d in range(len(data['track_id'])):
-                    if data['track_id'][d] == []:
+                    if not data['track_id'][d]:
                         continue
                     # each feature vector for a detection in the sequence contains:
                     # [2d_bbox_score (1), 2d_bbox_coords (4), keypoint_appearance_feats (64), 3d_convex_hull_coords (10)]
