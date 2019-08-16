@@ -25,7 +25,7 @@ args = parser.parse_args()
 # setup args
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 if args.output_dir is None:
-    args.output_dir = datetime.now().strftime("%I:%M%p-%B-%d-%Y")
+    args.output_dir = datetime.now().strftime("%Y-%m-%d-%I:%M%p")
     args.output_dir = os.path.join('.', 'experiments', args.output_dir)
 
 if not os.path.exists(args.output_dir):
