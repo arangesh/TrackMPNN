@@ -2,11 +2,11 @@ import os
 
 
 def get_tracking_data(dataset_path, split, timesteps):
-    seqs = os.listdir(dataset_path)
+    seqs = sorted(os.listdir(dataset_path))
     if split == 'train':
-        seqs = seqs[:-2]
+        seqs = seqs[1:14] + seqs[15:]
     elif split == 'val':
-        seqs = seqs[-2:]
+        seqs = [seqs[0], seqs[14]]
     elif split == 'trainval':
         pass
     else:
