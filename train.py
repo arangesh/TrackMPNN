@@ -175,7 +175,7 @@ if __name__ == '__main__':
     fig1, ax1 = plt.subplots()
     plt.grid(True)
     train_loss = list()
-    
+
     fig2, ax2 = plt.subplots()
     plt.grid(True)
     ax2.plot([], 'g', label='Train accuracy')
@@ -206,7 +206,7 @@ if __name__ == '__main__':
         ax2.plot(train_acc, 'g', label='Train accuracy')
         ax2.plot(val_acc, 'b', label='Validation accuracy')
         fig2.savefig(os.path.join(args.output_dir, 'train_val_accuracy.jpg'))
-        
+
         ax3.plot(val_mota, 'b', label='Validation MOTA')
         fig3.savefig(os.path.join(args.output_dir, 'val_mota.jpg'))
     plt.close('all')
