@@ -133,24 +133,25 @@ def initialize_graph(X, y, mode='test', cuda=True):
     return y_pred, feats, node_adj, edge_adj, labels, t1+1, tN+1
 
 
-def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='test', cuda=True):
+def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='test', cuda=True):
     """
-    This is a function for updating the graph with detections from timestep t
+    This is a function for updating the graph with detections from timestep t and performing
+    other upkeep operations.
 
     feats [N, NUM_FEATS]: Input features for each node in graph (includes detection
                           nodes and edge nodes (0s))
     node_adj [N, N]: Adjacency matrix for updating detection nodes
     labels [N,]: Binary class for each node
-    labels_pred [N, 2]: Predicted binary class probabilities for each node
-    y_pred [N, 2]: Array where each row is [ts, ass_id] indicating the associated detection
-                   for each node i.e. ith row entry indicates the timestep of current node
-                   and id of next associated detection node
+    scores [N, 2]: Predicted binary class probabilities for each node
+    y_pred [N, 3]: Array where each row is [ts, det_id, ass_id] indicating the associated detection
+                   for each node i.e. ith row entry indicates the timestep of current node, detection
+                   id of the current node, and the detection id of next associated node
     X [B, NUM_DETS, NUM_FEATS]: Features for all detections in a sequence
     y [B, NUM_DETS, 2]: Array where each row is [ts, track_id]
     t [scalar]: Timestep whose detections to update the graph with
 
     Returns: (Typically N' > N)
-    y_pred [N', 2]: Updated y_pred
+    y_pred [N', 3]: Updated y_pred
     feats [N', NUM_FEATS]: Updated feats
     node_adj [N', N']: Updated node_adj
     edge_adj [N', N']: Updated edge
@@ -164,7 +165,7 @@ def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='te
     node_adj = node_adj.detach().cpu().numpy().astype('float32')
     if labels is not None:
         labels = labels.detach().cpu().numpy().astype('int64')
-    labels_pred = labels_pred.detach().cpu().numpy().astype('float32')
+    scores = scores.detach().cpu().numpy().astype('float32')
     y_pred = y_pred.detach().cpu().numpy().astype('int64')
     y = y.squeeze(0).detach().cpu().numpy().astype('int64')
 
@@ -172,25 +173,26 @@ def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='te
     diag_ind = np.diag_indices(node_adj.shape[0])
     node_adj[diag_ind] = 0
 
-    # [y_pred_t-1, feats_t-1, node_adj_t-1, labels_t-1] <-- update(labels_pred_t-1)
-    id_offset = np.cumsum(y_pred[:, 0] == -1)
-    y_pred[:, 1] = -1
+    # [y_pred_t-1, node_adj_t-1, labels_t-1] <-- update(scores_t-1)
+    y_pred[:, 2] = -1
     del_ids = np.array([], dtype='int64')
     for i in range(y_pred.shape[0]):
         if y_pred[i, 0] < 0: # if edge node, continue
             continue
-        if labels_pred[i, 1] >= 0.5: # if detection is a true positive
+        if scores[i, 1] >= 0.5: # if detection is a true positive
             ids = np.where(node_adj[i+1:, i])[0]+i+1 # find edge nodes it is connected to
-            idx = np.where(labels_pred[ids, 1] >= 0.5)[0] # find edges with +ve label
-            if idx.size > 0: # if association exists
-                idx = ids[idx] # actual indices of all +ve edges
-                idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # first find detection nodes
-                idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after positive edge
-                idx = idx[idx < idx_next_det[0]] # retain indices from nearest timestep only
+            idx = np.where(scores[ids, 1] >= 0.5)[0] # find edges with +ve label
+            idx = ids[idx] # actual indices of all +ve edges
+            # only retain edges that connect to a true positive detection
+            idx = np.array([x for x in idx if scores[np.where(node_adj[x, :])[0][-1], 1] >= 0.5], dtype='int64')
+            if idx.size > 0: # if positive association exists
+                idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # find all detection nodes
+                idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after first positive edge
+                idx = idx[idx < idx_next_det[0]] # retain edges only from nearest timestep 
 
-                best_idx = idx[np.argmax(labels_pred[idx, 1])] # assign to edge with highest prob in nearest timestep
-                y_pred[i, 1] = np.where(node_adj[best_idx, :])[0][-1] # find detection node at other end of edge
-                y_pred[i, 1] = y_pred[i, 1] - id_offset[y_pred[i, 1]] # offset detection index to account for edge nodes
+                best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
+                # get detection index to which highest scoring edge connects, and associate to it
+                y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1] 
 
                 # remove all edges after nearest timestep with positive edge
                 del_ids = np.concatenate((del_ids, ids[ids > idx_next_det[0]]), 0)
@@ -200,19 +202,22 @@ def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='te
     node_adj = np.delete(node_adj, del_ids, 1)
     if labels is not None:
         labels = np.delete(labels, del_ids, 0)
+    scores = np.delete(scores, del_ids, 0)
     y_pred = np.delete(y_pred, del_ids, 0)
 
-    num_dets_past = y_pred.shape[0] 
-    ids_active_pred = np.where(np.logical_and(y_pred[:, 0] != -1, y_pred[:, 1] == -1))[0]
-    num_dets_active = ids_active_pred.shape[0]
+    num_past = y_pred.shape[0]
+    # find true positive detections that are not yet associated, and make them available for association at time t
+    ids_active_pred = np.where(np.logical_and(np.logical_and(y_pred[:, 0] != -1, y_pred[:, 2] == -1), scores[:, 1] >= 0.5))[0]
+    num_dets_active = ids_active_pred.size
     ids_t = np.where(y[:, 0] == t)[0]
-    num_dets_t = ids_t.shape[0]
+    num_dets_t = ids_t.size
     pad_size = num_dets_active*num_dets_t+num_dets_t
 
     # y_pred_t <-- y_pred_t-1
-    y_pred = np.concatenate((y_pred, -1*np.ones((pad_size, 2), dtype='int64')), 0)
     if num_dets_t != 0: # negative indexing does not work if num_dets_t is 0
+        y_pred = np.concatenate((y_pred, -1*np.ones((pad_size, 3), dtype='int64')), 0)
         y_pred[-num_dets_t:, 0] = t
+        y_pred[-num_dets_t:, 1] = ids_t
     y_pred = torch.from_numpy(y_pred)
     if cuda:
         y_pred = y_pred.cuda()
@@ -224,12 +229,13 @@ def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='te
     feats = torch.cat((feats, X_edge, X[0, ids_t, :]), 0)
 
     # [node_adj_t, edge_adj_t] <-- node_adj_t-1
-    node_adj = np.concatenate((node_adj, np.zeros((pad_size, node_adj.shape[1]), dtype='float32')), 0)
-    node_adj = np.concatenate((node_adj, np.zeros((node_adj.shape[0], pad_size), dtype='float32')), 1)
-    for i in range(num_dets_active):
-        node_adj[num_dets_past+i*num_dets_t:num_dets_past+(i+1)*num_dets_t, ids_active_pred[i]] = 1
-    for i in range(num_dets_t):
-        node_adj[num_dets_past+i:num_dets_past+num_dets_active*num_dets_t:num_dets_t, num_dets_past+num_dets_active*num_dets_t+i] = -1
+    if num_dets_t != 0: 
+        node_adj = np.concatenate((node_adj, np.zeros((pad_size, node_adj.shape[1]), dtype='float32')), 0)
+        node_adj = np.concatenate((node_adj, np.zeros((node_adj.shape[0], pad_size), dtype='float32')), 1)
+        for i in range(num_dets_active):
+            node_adj[num_past+i*num_dets_t:num_past+(i+1)*num_dets_t, ids_active_pred[i]] = 1
+        for i in range(num_dets_t):
+            node_adj[num_past+i:num_past+num_dets_active*num_dets_t:num_dets_t, num_past+num_dets_active*num_dets_t+i] = -1
     node_adj = torch.from_numpy(node_adj)
     if cuda:
         node_adj = node_adj.cuda()
@@ -246,21 +252,19 @@ def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='te
 
     # labels_t <-- labels_t-1
     if mode == 'train':
-        labels = np.concatenate((labels, np.zeros((pad_size,), dtype='int64')), 0)
-        ids_dets = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
-        ids_active = torch.nonzero((y_pred[ids_dets, 0] != t) & (y_pred[ids_dets, 1] == -1))[:, 0]
-        ids_active = ids_active.detach().cpu().numpy().astype('int64')
-        y_active = y[ids_active, :]
-
-        y_t = y[ids_t, :]
-        labels[num_dets_past+num_dets_active*num_dets_t:] = y_t[:, 1] >= 0
-        if y_t.size > 0:
-            for i in range(num_dets_active):
-                if y_active[i, 1] == -1: # if a false positive, no edge is positive
-                    continue
-                idx = np.where(y_t[:, 1] == y_active[i, 1])[0]
-                if idx.size == 1:
-                    labels[num_dets_past+i*num_dets_t+idx[0]] = 1
+        if num_dets_t != 0:
+            labels = np.concatenate((labels, np.zeros((pad_size,), dtype='int64')), 0)
+            y_active = y[y_pred[ids_active_pred, 1].detach().cpu().numpy().astype('int64'), :]
+            y_t = y[ids_t, :]
+            labels[num_past+num_dets_active*num_dets_t:] = y_t[:, 1] >= 0
+            if y_t.size > 0:
+                for i in range(num_dets_active):
+                    # if a false positive, no edge is positive (this may not be needed because all active dets are true positives)
+                    if y_active[i, 1] == -1:
+                        continue
+                    idx = np.where(y_t[:, 1] == y_active[i, 1])[0]
+                    if idx.size == 1:
+                        labels[num_past+i*num_dets_t+idx[0]] = 1
         labels = torch.from_numpy(labels)
         if cuda:
             labels = labels.cuda()
