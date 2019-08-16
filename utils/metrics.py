@@ -4,20 +4,22 @@ import torch
 import motmetrics as mm
 
 
-def create_mot_accumulator(tracks, y):
+def create_mot_accumulator(y_out, X, y):
     """
-    This is a function returns an accumulator with tracking predictions stored in it
+    This is a function returns an accumulator with tracking predictions and GT stored in it
     
-    tracks list([N',]): A list of 1D arrays of detection IDs for each track.
+    y_out [NUM_DETS, 2]: Array of outputs where each row is [ts, track_id]
+    X [B, NUM_DETS, NUM_FEATS]: Features for all detections in a sequence
     y [B, NUM_DETS, 2]: Array where each row is [ts, track_id]
 
     Returns: 
     A MOT accumulator object
     """
+    X = X.squeeze(0).detach().cpu().numpy().astype('float32') # (NUM_DETS, 2)
     y = y.squeeze(0).detach().cpu().numpy().astype('int64') # (NUM_DETS, 2)
-    if np.all(y[:, 1] == -1):
+    if np.all(y_out[:, 1] == -1) or np.all(y[:, 1] == -1):
         return None
-    times = np.sort(y[:, 0])
+    times = np.sort(y_out[:, 0])
     t_st = times[0]
     t_ed = times[-1]
 
@@ -27,32 +29,19 @@ def create_mot_accumulator(tracks, y):
     for t in range(t_st, t_ed+1):
         oids = np.where(np.logical_and(y[:, 0] == t, y[:, 1] != -1))[0]
         otracks = y[oids, 1]
-        oids = oids.astype('float32')
         otracks = otracks.astype('float32')
 
-        hids = np.array([])
-        htracks = np.array([])
+        hids = np.where(np.logical_and(y_out[:, 0] == t, y_out[:, 1] != -1))[0]
+        htracks = y_out[hids, 1]
+        htracks = htracks.astype('float32')
 
-        for i, track in enumerate(tracks):
-            idx = np.where(y[track, 0] == t)[0]
-            if idx.size == 0:
-                continue
-            elif idx.size == 1:
-                htracks = np.append(htracks, i)
-                hids = np.append(hids, track[int(idx)])
-            else:
-                assert False, "Multiple detections from same frame assigned to same track"
+        bboxo = X[oids, 1:5]*np.array([1242, 375, 1242, 375]) + np.array([1242, 375, 1242, 375])/2
+        bboxo[:, 2:] = bboxo[:, 2:] - bboxo[:, :2]
+        bboxh = X[hids, 1:5]*np.array([1242, 375, 1242, 375]) + np.array([1242, 375, 1242, 375])/2
+        bboxh[:, 2:] = bboxh[:, 2:] - bboxh[:, :2]
+        dists = mm.distances.iou_matrix(bboxo, bboxh, max_iou=1.)
 
-        dists = cdist(np.stack((oids, oids), 1), np.stack((hids, hids), 1))
-        dists[dists > 0] = 1
         acc.update(otracks, htracks, dists, frameid=t)
-        
-    # make sure that desired metrics can be calculated
-    try:
-        mh = mm.metrics.create()
-        summary = mh.compute(acc, metrics=mm.metrics.motchallenge_metrics, name='acc')
-    except:
-        return None
 
     return acc
 
