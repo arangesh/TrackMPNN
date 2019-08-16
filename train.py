@@ -162,9 +162,7 @@ def val(model, epoch):
 
 if __name__ == '__main__':
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeat=1 + 4 + 64 + 10 - 10 + 64,
-                      nhid=args.hidden,
-                      nclass=2)
+    model = TrackMPNN(nfeat=1+4+64+10-10+64, nhid=args.hidden, nclass=2)
 
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=False)
@@ -177,7 +175,7 @@ if __name__ == '__main__':
     fig1, ax1 = plt.subplots()
     plt.grid(True)
     train_loss = list()
-
+    
     fig2, ax2 = plt.subplots()
     plt.grid(True)
     ax2.plot([], 'g', label='Train accuracy')
@@ -191,7 +189,7 @@ if __name__ == '__main__':
 
     train_acc, val_acc, val_mota = list(), list(), list()
 
-    for i in range(1, args.epochs + 1):
+    for i in range(1, args.epochs+1):
         model, avg_loss, acc = train(model, i)
         train_acc.append(acc)
 
@@ -208,7 +206,7 @@ if __name__ == '__main__':
         ax2.plot(train_acc, 'g', label='Train accuracy')
         ax2.plot(val_acc, 'b', label='Validation accuracy')
         fig2.savefig(os.path.join(args.output_dir, 'train_val_accuracy.jpg'))
-
+        
         ax3.plot(val_mota, 'b', label='Validation MOTA')
         fig3.savefig(os.path.join(args.output_dir, 'val_mota.jpg'))
     plt.close('all')
