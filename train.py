@@ -161,26 +161,26 @@ def val(model, epoch):
             total += float(labels.size()[0])
             # prune graph to reduce memory requirements
             if not args.tp_classifier:
-                y_pred, feats, node_adj, labels, scores = prune_graph(feats, node_adj, labels, scores, y_pred, 0, t-1, threshold=0.5, cuda=args.cuda)
-            if t == t_end-1:
+                y_pred, feats, node_adj, labels, scores = prune_graph(feats, node_adj, labels, scores, y_pred, 0, t - 1, threshold=0.5, cuda=args.cuda)
+            if t == t_end - 1:
                 y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_end, cuda=args.cuda)
             else:
-                y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t-args.timesteps+2, cuda=args.cuda)
-            print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx+1, max(0, t-args.timesteps+1), t_end))
-        print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx+1, t_end, t_end))
+                y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t - args.timesteps + 2, cuda=args.cuda)
+            print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t - args.timesteps + 1), t_end))
+        print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, t_end, t_end))
         # create results accumulator using predictions and GT for evaluation
         acc = create_mot_accumulator(y_out, X, y)
         if acc is not None:
             accs.append(acc)
 
-        print('Done with sequence {} out {}...'.format(min(b_idx+1, len(val_loader.dataset)), len(val_loader.dataset)))
+        print('Done with sequence {} out {}...'.format(min(b_idx + 1, len(val_loader.dataset)), len(val_loader.dataset)))
 
     if len(accs) > 0:
         mota = calc_mot_metrics(accs)['mota']
 
     print("------------------------\nPredicted {} out of {}".format(correct, total))
-    val_accuracy = 100.0*correct/total
-    val_mota = 100.0*mota
+    val_accuracy = 100.0 * correct / total
+    val_mota = 100.0 * mota
     print("Validation accuracy = {:.2f}%".format(val_accuracy))
     print("Validation MOTA = {:.2f}%\n------------------------".format(val_mota))
     with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
