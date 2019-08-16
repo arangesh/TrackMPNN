@@ -21,7 +21,7 @@ train_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'train', args
 val_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'val', args.timesteps), **kwargs)
 
 # global var to store best validation accuracy across all epochs
-best_mota = 0.0
+best_mota = -float('Inf')
 
 
 # training function
