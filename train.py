@@ -90,12 +90,12 @@ def train(model, epoch):
 
         if b_idx % args.log_schedule == 0:
             print('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}'.format(
-                epoch, (b_idx+1), len(train_loader.dataset),
-                100. * (b_idx+1) / len(train_loader.dataset), loss.item()))
+                epoch, (b_idx + 1), len(train_loader.dataset),
+                100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
             with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
                 f.write('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}\n'.format(
-                epoch, (b_idx+1), len(train_loader.dataset),
-                100. * (b_idx+1) / len(train_loader.dataset), loss.item()))
+                epoch, (b_idx + 1), len(train_loader.dataset),
+                100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
 
     # now that the epoch is completed calculate statistics and store logs
     avg_loss = statistics.mean(epoch_loss)
@@ -103,7 +103,7 @@ def train(model, epoch):
     with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
         f.write("\n------------------------\nAverage loss for epoch = {:.2f}\n".format(avg_loss))
     
-    train_accuracy = 100.0*correct/total
+    train_accuracy = 100.0 * correct / total
     print("Accuracy for epoch = {:.2f}%\n------------------------".format(train_accuracy))
     with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
         f.write("Accuracy for epoch = {:.2f}%\n------------------------\n".format(train_accuracy))
