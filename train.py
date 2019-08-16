@@ -116,7 +116,7 @@ def val(model, epoch):
     global best_mota
     correct = 0.
     total = 0.
-    motas = []
+    accs = []
     model.eval()
 
     for b_idx, (X, y) in enumerate(val_loader):
@@ -126,6 +126,10 @@ def val(model, epoch):
             X, y = X.cuda(), y.cuda()
         X, y = Variable(X), Variable(y)
 
+        # initaialize output array tracks to -1s
+        y_out = y.squeeze(0).detach().cpu().numpy().astype('int64')
+        y_out[:, 1] = -1
+
         # intialize graph and run first forward pass
         y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X, y, mode='train', cuda=args.cuda)
         if y_pred is None:
@@ -133,6 +137,10 @@ def val(model, epoch):
         # compute the classification scores
         scores = model.forward(feats, node_adj, edge_adj)
         scores = torch.exp(scores)
+        if not args.tp_classifier:
+            idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
+            scores[idx, 0] = 0
+            scores[idx, 1] = 1
         # compute the accuracy
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
         correct += float(pred.eq(labels.data).cpu().sum())
@@ -140,26 +148,39 @@ def val(model, epoch):
         # intialize graph and run first forward pass
         for t in range(t_init, t_end):
             # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t,
-                                                                     mode='train', cuda=args.cuda)
+            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='train', cuda=args.cuda)
             scores = model.forward(feats, node_adj, edge_adj)
             scores = torch.exp(scores)
+            if not args.tp_classifier:
+                idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
+                scores[idx, 0] = 0
+                scores[idx, 1] = 1
             # compute the accuracy
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             correct += float(pred.eq(labels.data).cpu().sum())
             total += float(labels.size()[0])
-            # y_pred, feats, node_adj, scores = prune_graph(feats, node_adj, scores, y_pred, min(t-10, 0), t-1, threshold=0.5)
-        tracks = decode_tracks(node_adj, scores, y_pred)
-        acc = create_mot_accumulator(tracks, y)
+            # prune graph to reduce memory requirements
+            if not args.tp_classifier:
+                y_pred, feats, node_adj, labels, scores = prune_graph(feats, node_adj, labels, scores, y_pred, 0, t-1, threshold=0.5, cuda=args.cuda)
+            if t == t_end-1:
+                y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_end, cuda=args.cuda)
+            else:
+                y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t-args.timesteps+2, cuda=args.cuda)
+            print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx+1, max(0, t-args.timesteps+1), t_end))
+        print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx+1, t_end, t_end))
+        # create results accumulator using predictions and GT for evaluation
+        acc = create_mot_accumulator(y_out, X, y)
         if acc is not None:
-            motas.append(calc_mot_metrics([acc])['mota'])
+            accs.append(acc)
 
-        print(
-            'Done with sequence {} out {}...'.format(min(b_idx + 1, len(val_loader.dataset)), len(val_loader.dataset)))
+        print('Done with sequence {} out {}...'.format(min(b_idx+1, len(val_loader.dataset)), len(val_loader.dataset)))
+
+    if len(accs) > 0:
+        mota = calc_mot_metrics(accs)['mota']
 
     print("------------------------\nPredicted {} out of {}".format(correct, total))
-    val_accuracy = 100.0 * correct / total
-    val_mota = 100.0 * statistics.mean(motas)
+    val_accuracy = 100.0*correct/total
+    val_mota = 100.0*mota
     print("Validation accuracy = {:.2f}%".format(val_accuracy))
     print("Validation MOTA = {:.2f}%\n------------------------".format(val_mota))
     with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
@@ -171,7 +192,7 @@ def val(model, epoch):
     if val_mota > best_mota:
         best_mota = val_mota
         # save the model
-        torch.save(model.state_dict(), os.path.join(args.output_dir, 'fgcn_' + '%.4d' % (epoch,) + '.pth'))
+        torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
 
     return val_accuracy, val_mota
 
