@@ -46,7 +46,7 @@ class FactorGraphConvolution(Module):
     """
     Similar to GCN, except different weights for nodes and edges (i.e. variables and factors)
     """
-    def __init__(self, in_features, out_features, bias=True, msg_type='subtract'):
+    def __init__(self, in_features, out_features, bias=True, msg_type='concat'):
         super(FactorGraphConvolution, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
