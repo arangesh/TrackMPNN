@@ -95,7 +95,7 @@ def initialize_graph(X, y, mode='test', cuda=True):
     # initialize edge_adj
     edge_adj = torch.t(node_adj) # tranpose node_adj to get edge_adj
     # retain node and edge informations
-    I_edge = torch.diag(y_pred[:, 0] == -1).float()
+    I_edge = torch.diag((y_pred[:, 0] == -1).float())
     if cuda:
         I_edge = I_edge.cuda()
         I_node = torch.eye(y_pred.size()[0]).cuda() - I_edge
@@ -233,7 +233,7 @@ def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='test', 
         node_adj = node_adj.cuda()
     edge_adj = torch.t(node_adj) # tranpose node_adj to get edge_adj
     # retain node and edge informations
-    I_edge = torch.diag(y_pred[:, 0] == -1).float()
+    I_edge = torch.diag((y_pred[:, 0] == -1).float())
     if cuda:
         I_edge = I_edge.cuda()
         I_node = torch.eye(y_pred.size()[0]).cuda() - I_edge
@@ -460,7 +460,7 @@ def decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_upto, cuda=T
     node_adj = torch.from_numpy(node_adj)
     if cuda:
         node_adj = node_adj.cuda()
-    I_edge = torch.diag(y_pred[:, 0] == -1).float()
+    I_edge = torch.diag((y_pred[:, 0] == -1).float())
     if cuda:
         I_edge = I_edge.cuda()
         I_node = torch.eye(y_pred.size()[0]).cuda() - I_edge
