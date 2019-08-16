@@ -46,10 +46,19 @@ def train(model, epoch):
         y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X, y, mode='train', cuda=args.cuda)
         if y_pred is None:
             continue
-        # compute the loss
         scores = model.forward(feats, node_adj, edge_adj)
-        loss = F.nll_loss(scores, labels)
-        scores = torch.exp(scores)
+        # compute the loss
+        if args.tp_classifier:
+            loss = F.nll_loss(scores, labels)
+            scores = torch.exp(scores)
+        else:
+            idx = torch.nonzero(y_pred[:, 0] == -1)[:, 0]
+            loss = F.nll_loss(scores[idx, :], labels[idx])
+            scores = torch.exp(scores)
+            idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
+            scores[idx, 0] = 0
+            scores[idx, 1] = 1
+
         # compute the accuracy
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
         correct += float(pred.eq(labels.data).cpu().sum())
@@ -57,12 +66,19 @@ def train(model, epoch):
         # intialize graph and run first forward pass
         for t in range(t_init, t_end):
             # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t,
-                                                                     mode='train', cuda=args.cuda)
+            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='train', cuda=args.cuda)
             scores = model.forward(feats, node_adj, edge_adj)
             # compute the loss
-            loss += F.nll_loss(scores, labels)
-            scores = torch.exp(scores)
+            if args.tp_classifier:
+                loss += F.nll_loss(scores, labels)
+                scores = torch.exp(scores)
+            else:
+                idx = torch.nonzero(y_pred[:, 0] == -1)[:, 0]
+                loss += F.nll_loss(scores[idx, :], labels[idx])
+                scores = torch.exp(scores)
+                idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
+                scores[idx, 0] = 0
+                scores[idx, 1] = 1
             # compute the accuracy
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             correct += float(pred.eq(labels.data).cpu().sum())
@@ -74,20 +90,20 @@ def train(model, epoch):
 
         if b_idx % args.log_schedule == 0:
             print('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}'.format(
-                epoch, (b_idx + 1), len(train_loader.dataset),
-                100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
+                epoch, (b_idx+1), len(train_loader.dataset),
+                100. * (b_idx+1) / len(train_loader.dataset), loss.item()))
             with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
                 f.write('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}\n'.format(
-                    epoch, (b_idx + 1), len(train_loader.dataset),
-                    100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
+                epoch, (b_idx+1), len(train_loader.dataset),
+                100. * (b_idx+1) / len(train_loader.dataset), loss.item()))
 
     # now that the epoch is completed calculate statistics and store logs
     avg_loss = statistics.mean(epoch_loss)
     print("------------------------\nAverage loss for epoch = {:.2f}".format(avg_loss))
     with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
         f.write("\n------------------------\nAverage loss for epoch = {:.2f}\n".format(avg_loss))
-
-    train_accuracy = 100.0 * correct / total
+    
+    train_accuracy = 100.0*correct/total
     print("Accuracy for epoch = {:.2f}%\n------------------------".format(train_accuracy))
     with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
         f.write("Accuracy for epoch = {:.2f}%\n------------------------\n".format(train_accuracy))
