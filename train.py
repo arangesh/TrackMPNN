@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 from models.track_mpnn import TrackMPNN
 from dataset.kitti_mots import KittiMOTSDataset
-from utils.graph import initialize_graph, update_graph, decode_tracks
+from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics
 from utils.training_options import args
 
