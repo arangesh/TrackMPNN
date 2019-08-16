@@ -1,5 +1,5 @@
 """
-NOTE: Make sure feature matrix X is initialized as a cuda tensor variable with requires_grad=True outside this module
+NOTE: Make sure feature matrix X is initialized as a cuda tensor with requires_grad=True outside this module
 These functions have been designed to be used in a loop over timesteps.
 Normal usage would be something like:
 
@@ -16,7 +16,6 @@ network.backward(loss)
 """
 import torch
 import numpy as np
-from torch.autograd import Variable
 
 
 def normalize(adj):
@@ -122,13 +121,6 @@ def initialize_graph(X, y, mode='test', cuda=True):
                 labels[num_dets_t0+i*num_dets_t1+idx[0]] = 1
     else:
         labels = None
-
-    # intialize GPU Variable tensors
-    # Note that feat is the only output that has a gradient
-    node_adj = Variable(node_adj, requires_grad=False)
-    edge_adj = Variable(edge_adj, requires_grad=False)
-    if labels is not None:
-        labels = Variable(labels, requires_grad=False)
 
     return y_pred, feats, node_adj, edge_adj, labels, t1+1, tN+1
 
@@ -268,13 +260,6 @@ def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='test', 
         labels = torch.from_numpy(labels)
         if cuda:
             labels = labels.cuda()
-
-    # intialize GPU Variable tensors
-    # Note that feat is the only output that has a gradient
-    node_adj = Variable(node_adj, requires_grad=False)
-    edge_adj = Variable(edge_adj, requires_grad=False)
-    if labels is not None:
-        labels = Variable(labels, requires_grad=False)
 
     return y_pred, feats, node_adj, edge_adj, labels
 
