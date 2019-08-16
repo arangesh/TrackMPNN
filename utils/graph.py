@@ -133,51 +133,6 @@ def initialize_graph(X, y, mode='test', cuda=True):
     return y_pred, feats, node_adj, edge_adj, labels, t1+1, tN+1
 
 
-def prune_graph(feats, node_adj, labels_pred, y_pred, t1, t2, threshold=0.5):
-    """
-    This is a function for pruning low probability nodes and edges
-
-    feats [N, NUM_FEATS]: Input features for each node in graph (includes detection
-                          nodes and edge nodes (0s))
-    node_adj [N, N]: Adjacency matrix for updating detection nodes
-    labels_pred [N, 2]: Predicted binary class probabilities for each node
-    y_pred [N, 2]: Array where each row is [ts, ass_id] indicating the associated detection
-                   for each node i.e. ith row entry indicates the timestep of current node
-                   and id of next associated detection node
-    t1, t2 [scalars]: Start and end timesteps for pruning (inclusive)
-    threshold [scalars]: Threshold for pruning edges
-
-    Returns: (Typically N' < N)
-    y_pred [N', 2]: Pruned y_pred
-    feats [N', NUM_FEATS]: Pruned feats
-    node_adj [N', N']: Pruned node_adj
-    labels_pred [N', 2]: Pruned labels_pred
-    """
-    assert (t1 <= t2), "t1 must be lesser than or equal to t2!"
-    
-    idx = torch.nonzero((y_pred[:, 0] >= t1) & (y_pred[:, 0] <= t2))[:, 0]
-    if idx.size()[0] == 0:
-        return y_pred, feats, node_adj
-    idx_st = idx[0]
-    idx_ed = idx[-1]
-
-    # retain graph node if at least one of these conditions is satisfied:
-    # --> node has probability greater than threshold
-    # --> node belongs to a detection
-    # --> node belongs to a timestep before t1
-    # --> node belongs to a timestep after t2
-    idx = torch.nonzero((labels_pred[:, 1] >= threshold) | (y_pred[:, 0] != -1) | 
-        (torch.arange(y_pred.size()[0]) < idx_st) | (torch.arange(y_pred.size()[0]) > idx_ed))[:, 0]
-
-    y_pred   = y_pred[idx, :]
-    feats    = feats[idx, :]
-    node_adj = node_adj[idx, :]
-    node_adj = node_adj[:, idx]
-    labels_pred   = labels_pred[idx, :]
-
-    return y_pred, feats, node_adj, labels_pred
-
-
 def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='test', cuda=True):
     """
     This is a function for updating the graph with detections from timestep t
@@ -318,6 +273,59 @@ def update_graph(feats, node_adj, labels, labels_pred, y_pred, X, y, t, mode='te
         labels = Variable(labels, requires_grad=False)
 
     return y_pred, feats, node_adj, edge_adj, labels
+
+
+def prune_graph(feats, node_adj, labels, scores, y_pred, t_st, t_ed, threshold=0.5, cuda=True):
+    """
+    This is a function for pruning low probability nodes and edges.
+
+    feats [N, NUM_FEATS]: Input features for each node in graph (includes detection
+                          nodes and edge nodes (0s))
+    node_adj [N, N]: Adjacency matrix for updating detection nodes
+    labels [N,]: Binary class for each node
+    scores [N, 2]: Predicted binary class probabilities for each node
+    y_pred [N, 3]: Array where each row is [ts, det_id, ass_id] indicating the associated detection
+                   for each node i.e. ith row entry indicates the timestep of current node, detection
+                   id of the current node, and the detection id of next associated node
+    t_st, t_ed [scalars]: Start and end timesteps for pruning (inclusive)
+    threshold [scalars]: Threshold for pruning edges
+
+    Returns: (Typically N' < N)
+    y_pred [N', 3]: Pruned y_pred
+    feats [N', NUM_FEATS]: Pruned feats
+    node_adj [N', N']: Pruned node_adj
+    labels [N',]: Pruned labels
+    scores [N', 2]: Pruned scores
+    """
+    assert (t_st <= t_ed), "t_st must be lesser than or equal to t_ed!"
+    
+    idx = torch.nonzero((y_pred[:, 0] >= t_st) & (y_pred[:, 0] <= t_ed))[:, 0]
+    if idx.size()[0] == 0:
+        return y_pred, feats, node_adj, scores
+    idx_st = idx[0]
+    idx_ed = idx[-1]
+
+    indices = torch.arange(y_pred.size()[0])
+    if cuda:
+        indices = indices.cuda()
+
+    # retain graph node if at least one of these conditions is satisfied:
+    # --> node has probability greater than threshold
+    # --> node belongs to a detection
+    # --> node belongs to a timestep before t_st
+    # --> node belongs to a timestep after t_ed
+    idx = torch.nonzero((scores[:, 1] >= threshold) | (y_pred[:, 0] != -1) | 
+        (indices < idx_st) | (indices > idx_ed))[:, 0]
+
+    y_pred   = y_pred[idx, :]
+    feats    = feats[idx, :]
+    node_adj = node_adj[idx, :]
+    node_adj = node_adj[:, idx]
+    if labels is not None:
+        labels = labels[idx]
+    scores   = scores[idx, :]
+
+    return y_pred, feats, node_adj, labels, scores
 
 
 def decode_tracks(node_adj, labels_pred, y_pred):
