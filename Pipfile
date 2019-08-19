@@ -9,8 +9,6 @@ verify_ssl = true
 numpy = "*"
 matplotlib = "*"
 scipy = "*"
-torch = "*"
-torchvision = "*"
 motmetrics = "*"
 
 [requires]
