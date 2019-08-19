@@ -48,10 +48,11 @@ def train(model, epoch):
         scores = model.forward(feats, node_adj, edge_adj)
         # compute the loss
         if args.tp_classifier:
-            loss = F.nll_loss(scores, labels)
+            idx = torch.nonzero(labels != -1)[:, 0]
+            loss = F.nll_loss(scores[idx, :], labels[idx])
             scores = torch.exp(scores)
         else:
-            idx = torch.nonzero(y_pred[:, 0] == -1)[:, 0]
+            idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
             loss = F.nll_loss(scores[idx, :], labels[idx])
             scores = torch.exp(scores)
             idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
@@ -60,8 +61,8 @@ def train(model, epoch):
 
         # compute the accuracy
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
-        correct += float(pred.eq(labels.data).cpu().sum())
-        total += float(labels.size()[0])
+        correct += float(pred[idx].eq(labels[idx].data).cpu().sum())
+        total += float(labels[idx].size()[0])
         # intialize graph and run first forward pass
         for t in range(t_init, t_end):
             # update graph for next timestep and run forward pass
@@ -69,10 +70,11 @@ def train(model, epoch):
             scores = model.forward(feats, node_adj, edge_adj)
             # compute the loss
             if args.tp_classifier:
-                loss += F.nll_loss(scores, labels)
+                idx = torch.nonzero(labels != -1)[:, 0]
+                loss += F.nll_loss(scores[idx, :], labels[idx])
                 scores = torch.exp(scores)
             else:
-                idx = torch.nonzero(y_pred[:, 0] == -1)[:, 0]
+                idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
                 loss += F.nll_loss(scores[idx, :], labels[idx])
                 scores = torch.exp(scores)
                 idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
@@ -80,8 +82,8 @@ def train(model, epoch):
                 scores[idx, 1] = 1
             # compute the accuracy
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
-            correct += float(pred.eq(labels.data).cpu().sum())
-            total += float(labels.size()[0])
+            correct += float(pred[idx].eq(labels[idx].data).cpu().sum())
+            total += float(labels[idx].size()[0])
 
         epoch_loss.append(loss.item())
         loss.backward()
