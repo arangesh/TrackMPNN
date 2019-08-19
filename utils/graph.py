@@ -113,12 +113,14 @@ def initialize_graph(X, y, mode='test', cuda=True):
         y_t1 = y[0, ids_t1, :] # (N1, 2)
         labels[:num_dets_t0] = y_t0[:, 1] >= 0
         labels[num_dets_t0+num_dets_t0*num_dets_t1:] = y_t1[:, 1] >= 0
-        for i in range(num_dets_t0):
-            if y_t0[i, 1] == -1: # if a false positive, no edge is positive
+        for i in range(num_dets_t1):
+            if y_t1[i, 1] == -1: # if a false positive, no edge is positive
                 continue
-            idx = torch.nonzero(y_t1[:, 1] == y_t0[i, 1])[:, 0]
+            idx = torch.nonzero(y_t0[:, 1] == y_t1[i, 1])[:, 0]
             if idx.size()[0] == 1:
-                labels[num_dets_t0+i*num_dets_t1+idx[0]] = 1
+                labels[num_dets_t0+idx[0]*num_dets_t1+i] = 1
+            elif idx.size()[0] > 1:
+                assert False, "More than one detection from same timestep assinged to same track!"
     else:
         labels = None
 
@@ -250,13 +252,20 @@ def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='test', 
             y_t = y[ids_t, :]
             labels[num_past+num_dets_active*num_dets_t:] = y_t[:, 1] >= 0
             if y_t.size > 0:
-                for i in range(num_dets_active):
+                for i in range(num_dets_t):
                     # if a false positive, no edge is positive (this may not be needed because all active dets are true positives)
-                    if y_active[i, 1] == -1:
+                    if y_t[i, 1] == -1:
                         continue
-                    idx = np.where(y_t[:, 1] == y_active[i, 1])[0]
+                    idx = np.where(y_active[:, 1] == y_t[i, 1])[0]
                     if idx.size == 1:
-                        labels[num_past+i*num_dets_t+idx[0]] = 1
+                        labels[num_past+idx[0]*num_dets_t+i] = 1
+                    elif idx.size > 1:
+                        match_idx = idx[np.argmax(y_pred[idx, 0].detach().cpu().numpy().astype('int64'))] # find det closest in time with the same track id
+                        for ids in idx: # for each det from the same track
+                            if ids == match_idx:
+                                labels[num_past+ids*num_dets_t+i] = 1 # match if its the det closest in time
+                            else:
+                                labels[num_past+ids*num_dets_t+i] = -1 # ignore if not closest det
         labels = torch.from_numpy(labels)
         if cuda:
             labels = labels.cuda()
