@@ -7,7 +7,7 @@ This is the Pytorch implementation for TrackMPNN - an end-to-end trainable multi
 2) Install PyTorch
 3) Install Pipenv:
 ```shell
-pip install pipenv
+pip3 install pipenv
 ```
 4) Install other requirements and dependencies using Pipenv:
 ```shell
