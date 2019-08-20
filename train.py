@@ -55,9 +55,9 @@ def train(model, epoch):
             idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
             loss = F.nll_loss(scores[idx, :], labels[idx])
             scores = torch.exp(scores)
-            idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
-            scores[idx, 0] = 0
-            scores[idx, 1] = 1
+            ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
+            scores[ids, 0] = 0
+            scores[ids, 1] = 1
 
         # compute the accuracy
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
@@ -77,9 +77,9 @@ def train(model, epoch):
                 idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
                 loss += F.nll_loss(scores[idx, :], labels[idx])
                 scores = torch.exp(scores)
-                idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
-                scores[idx, 0] = 0
-                scores[idx, 1] = 1
+                ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
+                scores[ids, 0] = 0
+                scores[ids, 1] = 1
             # compute the accuracy
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             correct += float(pred[idx].eq(labels[idx].data).cpu().sum())
@@ -138,9 +138,9 @@ def val(model, epoch):
         scores = model.forward(feats, node_adj, edge_adj)
         scores = torch.exp(scores)
         if not args.tp_classifier:
-            idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
-            scores[idx, 0] = 0
-            scores[idx, 1] = 1
+            ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
+            scores[ids, 0] = 0
+            scores[ids, 1] = 1
         # compute the accuracy
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
         correct += float(pred.eq(labels.data).cpu().sum())
@@ -152,9 +152,9 @@ def val(model, epoch):
             scores = model.forward(feats, node_adj, edge_adj)
             scores = torch.exp(scores)
             if not args.tp_classifier:
-                idx = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
-                scores[idx, 0] = 0
-                scores[idx, 1] = 1
+                ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
+                scores[ids, 0] = 0
+                scores[ids, 1] = 1
             # compute the accuracy
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             correct += float(pred.eq(labels.data).cpu().sum())
