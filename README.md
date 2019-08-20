@@ -17,6 +17,7 @@ pipenv install
 ```shell
 pipenv shell # activate virtual environment
 pipenv install https://download.pytorch.org/whl/cu100/torch-1.2.0-cp36-cp36m-manylinux1_x86_64.whl
+exit # exit virtual environment
 ```
 Note that this repository additionally uses code from [PointNet.pytorch](https://github.com/fxia22/pointnet.pytorch) and [Graph Convolutional Networks in PyTorch](https://github.com/tkipf/pygcn).
 
