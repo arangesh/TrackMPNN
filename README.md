@@ -9,7 +9,7 @@ This is the Pytorch implementation for TrackMPNN - an end-to-end trainable multi
 ```shell
 pip3 install pipenv
 ```
-4) Install other requirements and dependencies using Pipenv:
+4) Install other requirements and dependencies in a new virtual environment using Pipenv:
 ```shell
 cd TrackMPNN
 pipenv install
