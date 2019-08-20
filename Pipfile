@@ -6,6 +6,7 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
+torch = {file = "https://download.pytorch.org/whl/cu100/torch-1.2.0-cp36-cp36m-manylinux1_x86_64.whl"}
 numpy = "*"
 matplotlib = "*"
 scipy = "*"
