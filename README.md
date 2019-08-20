@@ -25,5 +25,6 @@ Note that this repository additionally uses code from [PointNet.pytorch](https:/
 TrackMPNN can be trained using [this](https://github.com/arangesh/TrackMPNN/blob/master/train.py) script as follows:
 
 ```shell
+pipenv shell # activate virtual environment
 python train.py --dataset-root-path=/path/to/kitti-mots/ --timesteps=5
 ```
