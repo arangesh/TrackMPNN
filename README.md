@@ -15,9 +15,7 @@ pipenv install
 ```
 4) Get link for desired PyTorch wheel from [here](https://download.pytorch.org/whl/torch_stable.html) and install it in the Pipenv virtual environment as follows:
 ```shell
-pipenv shell # activate virtual environment
 pipenv install https://download.pytorch.org/whl/cu100/torch-1.2.0-cp36-cp36m-manylinux1_x86_64.whl
-exit # exit virtual environment
 ```
 Note that this repository additionally uses code from [PointNet.pytorch](https://github.com/fxia22/pointnet.pytorch) and [Graph Convolutional Networks in PyTorch](https://github.com/tkipf/pygcn).
 
@@ -30,4 +28,5 @@ TrackMPNN can be trained using [this](https://github.com/arangesh/TrackMPNN/blob
 ```shell
 pipenv shell # activate virtual environment
 python train.py --dataset-root-path=/path/to/kitti-mots/ --timesteps=5
+exit # exit virtual environment
 ```
