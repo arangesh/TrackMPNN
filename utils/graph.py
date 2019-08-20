@@ -245,15 +245,8 @@ def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='test', 
                     if y_t[i, 1] == -1:
                         continue
                     idx = np.where(y_active[:, 1] == y_t[i, 1])[0]
-                    if idx.size == 1:
-                        labels[num_past+idx[0]*num_dets_t+i] = 1
-                    elif idx.size > 1:
-                        match_idx = idx[np.argmax(y_pred[idx, 0].detach().cpu().numpy().astype('int64'))] # find det closest in time with the same track id
-                        for ids in idx: # for each det from the same track
-                            if ids == match_idx:
-                                labels[num_past+ids*num_dets_t+i] = 1 # match if its the det closest in time
-                            else:
-                                labels[num_past+ids*num_dets_t+i] = -1 # ignore if not closest det
+                    for ids in idx: # for each det from the same track
+                        labels[num_past+ids*num_dets_t+i] = 1
         labels = torch.from_numpy(labels)
         if cuda:
             labels = labels.cuda()
