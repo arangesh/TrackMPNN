@@ -30,3 +30,4 @@ pipenv shell # activate virtual environment
 python train.py --dataset-root-path=/path/to/kitti-mots/ --timesteps=5
 exit # exit virtual environment
 ```
+Config files, logs, results and snapshots from running the above script will be stored in the `TrackMPNN/experiments` folder by default.
