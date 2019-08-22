@@ -17,13 +17,14 @@ parser.add_argument('--momentum', type=float, default=0.9, metavar='M', help='mo
 parser.add_argument('--weight-decay', type=float, default=0.0005, metavar='WD', help='weight decay')
 parser.add_argument('--log-schedule', type=int, default=10, metavar='N', help='number of iterations to print/save log after')
 parser.add_argument('--seed', type=int, default=1, help='set seed to some constant value to reproduce experiments')
-parser.add_argument('--tp-classifier', action='store_true', default=False, help='train network to classify true positives')
+parser.add_argument('--no-tp-classifier', action='store_true', default=False, help='train network to only classify edges')
 parser.add_argument('--no-cuda', action='store_true', default=False, help='do not use cuda for training')
 
 
 args = parser.parse_args()
 
 # setup args
+args.tp_classifier = not args.no_tp_classifier
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 if args.output_dir is None:
     args.output_dir = datetime.now().strftime("%Y-%m-%d-%H:%M")
