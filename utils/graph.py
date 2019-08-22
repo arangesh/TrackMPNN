@@ -167,9 +167,8 @@ def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='test', 
     diag_ind = np.diag_indices(node_adj.shape[0])
     node_adj[diag_ind] = 0
 
-    # [y_pred_t-1, node_adj_t-1, labels_t-1] <-- update(scores_t-1)
+    # y_pred_t-1 <-- update(scores_t-1)
     y_pred[:, 2] = -1
-    del_ids = np.array([], dtype='int64')
     for i in range(y_pred.shape[0]):
         if y_pred[i, 0] < 0: # if edge node, continue
             continue
@@ -186,18 +185,7 @@ def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='test', 
 
                 best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
                 # get detection index to which highest scoring edge connects, and associate to it
-                y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1] 
-
-                # remove all edges after nearest timestep with positive edge
-                del_ids = np.concatenate((del_ids, ids[ids > idx_next_det[0]]), 0)
-
-    feats = feats[np.delete(np.arange(y_pred.shape[0]), del_ids, 0), :]
-    node_adj = np.delete(node_adj, del_ids, 0)
-    node_adj = np.delete(node_adj, del_ids, 1)
-    if labels is not None:
-        labels = np.delete(labels, del_ids, 0)
-    scores = np.delete(scores, del_ids, 0)
-    y_pred = np.delete(y_pred, del_ids, 0)
+                y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1]
 
     num_past = y_pred.shape[0]
     # find true positive detections that are not yet associated, and make them available for association at time t
