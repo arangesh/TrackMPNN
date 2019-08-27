@@ -92,6 +92,7 @@ class FactorGraphConvolution(Module):
         if self.edge_bias is not None:
             edge_output = edge_output + self.edge_bias
 
+        # Options for the activation function incldue: relu, leaky_relu, prelu, sigmoid, tanh
         return F.relu(node_output) + edge_output
 
     def __repr__(self):

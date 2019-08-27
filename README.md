@@ -27,7 +27,7 @@ Note that this repository additionally uses code from [PointNet.pytorch](https:/
 TrackMPNN can be trained using [this](https://github.com/arangesh/TrackMPNN/blob/master/train.py) script as follows:
 ```shell
 pipenv shell # activate virtual environment
-python train.py --dataset-root-path=/path/to/kitti-mots/ --timesteps=5 --tp-classifier
+python train.py --dataset-root-path=/path/to/kitti-mots/ --timesteps=5
 exit # exit virtual environment
 ```
 Config files, logs, results and snapshots from running the above script will be stored in the `TrackMPNN/experiments` folder by default.
