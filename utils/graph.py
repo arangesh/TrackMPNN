@@ -16,6 +16,7 @@ network.backward(loss)
 """
 import torch
 import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 
 def normalize(adj):
@@ -26,6 +27,72 @@ def normalize(adj):
     r_mat_inv = torch.diag(r_inv)
 
     return torch.matmul(r_mat_inv, adj)
+
+
+def hungarian(node_adj, scores, y_pred, t, threshold=0.5):
+    """
+    This is a function that provides the optimal linear assignment for a set of detections
+    from a given timestep using the Hungarian algorithm
+
+    node_adj [N, N]: Adjacency matrix for updating detection nodes
+    scores [N, 2]: Predicted binary class probabilities for each node
+    y_pred [N, 3]: Array where each row is [ts, det_id, ass_id] indicating the associated detection
+                   for each node i.e. ith row entry indicates the timestep of current node, detection
+                   id of the current node, and the detection id of next associated node
+    t [scalar]: Timestep at which to carry out optimal linear assignment
+    threshold [scalar]: Max aaceptable value of cost to carry out matching
+
+    Returns: 
+    y_pred [N, 3]: Updated y_pred with optimal assignment for time t
+    """
+    # find detection indices for timestep t
+    idx_t = np.where(y_pred[:, 0] == t)[0]
+    if idx_t.size == 0:
+        return y_pred
+
+    # find indices of all previous edges connected to detections from timestep t
+    idx_prev_edges = np.array([], dtype='int64')
+    for i in idx_t:
+        idx_prev_edges = np.concatenate((idx_prev_edges, np.where(node_adj[:i, i])[0]), 0) # find edge nodes it is connected to
+    if idx_prev_edges.size == 0:
+        return y_pred
+
+    # find indices of all previous detections connected to detections from timestep t
+    idx_prev = np.array([], dtype='int64')
+    for i in idx_prev_edges:
+        idx_prev = np.concatenate((idx_prev, np.where(node_adj[i, :])[0][0:1]), 0)
+
+    # remove duplicates and any previous detections that that have already been associated
+    idx_prev = np.unique(idx_prev)
+    del_ids = np.array([], dtype='int64')
+    for i in idx_prev:
+        if y_pred[i, 2] != -1:
+            del_ids = np.concatenate((del_ids, [i]), 0)
+    idx_prev = np.delete(idx_prev, del_ids, 0)
+    
+    # create cost matrix for bipartite matching problem
+    C = np.full((idx_prev.size, idx_t.size), 1.0, dtype='float32')
+    for i, id_prev in enumerate(idx_prev):
+        for j, id_t in enumerate(idx_t):
+            set1 = np.where(node_adj[:id_t, id_prev])[0]
+            set2 = np.where(node_adj[:id_t, id_t])[0]
+            edge_id = np.intersect1d(set1, set2)
+            if edge_id.size == 0:
+                continue
+            elif edge_id.size == 1:
+                C[i, j] = scores[edge_id, 0] # use first entry because we need a cost value
+            else:
+                assert False, "Two detection nodes connected through more than one edge!"
+
+    # find and carry out optimal linear assignment
+    row_ind, col_ind = linear_sum_assignment(C)
+    for i, j in zip(row_ind, col_ind):
+        if C[i, j] > threshold: # if cost is more than threshold, do not associate
+            continue
+        else:
+            y_pred[idx_prev[i], 2] = y_pred[idx_t[j], 1]
+
+    return y_pred
 
 
 def initialize_graph(X, y, mode='test', cuda=True):
@@ -127,7 +194,7 @@ def initialize_graph(X, y, mode='test', cuda=True):
     return y_pred, feats, node_adj, edge_adj, labels, t1+1, tN+1
 
 
-def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='test', cuda=True):
+def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, mode='test', cuda=True):
     """
     This is a function for updating the graph with detections from timestep t and performing
     other upkeep operations.
@@ -169,23 +236,27 @@ def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='test', 
 
     # y_pred_t-1 <-- update(scores_t-1)
     y_pred[:, 2] = -1
-    for i in range(y_pred.shape[0]):
-        if y_pred[i, 0] < 0: # if edge node, continue
-            continue
-        if scores[i, 1] >= 0.5: # if detection is a true positive
-            ids = np.where(node_adj[i+1:, i])[0]+i+1 # find edge nodes it is connected to
-            idx = np.where(scores[ids, 1] >= 0.5)[0] # find edges with +ve label
-            idx = ids[idx] # actual indices of all +ve edges
-            # only retain edges that connect to a true positive detection
-            idx = np.array([x for x in idx if scores[np.where(node_adj[x, :])[0][-1], 1] >= 0.5], dtype='int64')
-            if idx.size > 0: # if positive association exists
-                idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # find all detection nodes
-                idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after first positive edge
-                idx = idx[idx < idx_next_det[0]] # retain edges only from nearest timestep 
+    if use_hungraian:
+        for t_match in range(y_pred[0, 0], y_pred[-1, 0]):
+            y_pred = hungarian(node_adj, scores, y_pred, t_match, threshold=0.5)
+    else:
+        for i in range(y_pred.shape[0]):
+            if y_pred[i, 0] < 0: # if edge node, continue
+                continue
+            if scores[i, 1] >= 0.5: # if detection is a true positive
+                ids = np.where(node_adj[i+1:, i])[0]+i+1 # find edge nodes it is connected to
+                idx = np.where(scores[ids, 1] >= 0.5)[0] # find edges with +ve label
+                idx = ids[idx] # actual indices of all +ve edges
+                # only retain edges that connect to a true positive detection
+                idx = np.array([x for x in idx if scores[np.where(node_adj[x, :])[0][-1], 1] >= 0.5], dtype='int64')
+                if idx.size > 0: # if positive association exists
+                    idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # find all detection nodes
+                    idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after first positive edge
+                    idx = idx[idx < idx_next_det[0]] # retain edges only from nearest timestep 
 
-                best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
-                # get detection index to which highest scoring edge connects, and associate to it
-                y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1]
+                    best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
+                    # get detection index to which highest scoring edge connects, and associate to it
+                    y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1]
 
     num_past = y_pred.shape[0]
     # find true positive detections that are not yet associated, and make them available for association at time t
@@ -307,7 +378,7 @@ def prune_graph(feats, node_adj, labels, scores, y_pred, t_st, t_ed, threshold=0
     return y_pred, feats, node_adj, labels, scores
 
 
-def decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_upto, cuda=True):
+def decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_upto, use_hungraian=True, cuda=True):
     """
     This is a function for decoding and finalizing tracks for early parts of the graph,
     and removing said parts from the graph for all future operations.
@@ -345,25 +416,29 @@ def decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_upto, cuda=T
     diag_ind = np.diag_indices(node_adj.shape[0])
     node_adj[diag_ind] = 0
 
-    # [y_pred_t-1, node_adj_t-1, labels_t-1] <-- update(scores_t-1)
+    # y_pred_t-1 <-- update(scores_t-1)
     y_pred[:, 2] = -1
-    for i in range(y_pred.shape[0]):
-        if y_pred[i, 0] < 0: # if edge node, continue
-            continue
-        if scores[i, 1] >= 0.5: # if detection is a true positive
-            ids = np.where(node_adj[i+1:, i])[0]+i+1 # find edge nodes it is connected to
-            idx = np.where(scores[ids, 1] >= 0.5)[0] # find edges with +ve label
-            idx = ids[idx] # actual indices of all +ve edges
-            # only retain edges that connect to a true positive detection
-            idx = np.array([x for x in idx if scores[np.where(node_adj[x, :])[0][-1], 1] >= 0.5], dtype='int64')
-            if idx.size > 0: # if positive association exists
-                idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # find all detection nodes
-                idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after first positive edge
-                idx = idx[idx < idx_next_det[0]] # retain edges only from nearest timestep 
+    if use_hungraian:
+        for t_match in range(y_pred[0, 0], y_pred[-1, 0]):
+            y_pred = hungarian(node_adj, scores, y_pred, t_match, threshold=0.5)
+    else:
+        for i in range(y_pred.shape[0]):
+            if y_pred[i, 0] < 0: # if edge node, continue
+                continue
+            if scores[i, 1] >= 0.5: # if detection is a true positive
+                ids = np.where(node_adj[i+1:, i])[0]+i+1 # find edge nodes it is connected to
+                idx = np.where(scores[ids, 1] >= 0.5)[0] # find edges with +ve label
+                idx = ids[idx] # actual indices of all +ve edges
+                # only retain edges that connect to a true positive detection
+                idx = np.array([x for x in idx if scores[np.where(node_adj[x, :])[0][-1], 1] >= 0.5], dtype='int64')
+                if idx.size > 0: # if positive association exists
+                    idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # find all detection nodes
+                    idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after first positive edge
+                    idx = idx[idx < idx_next_det[0]] # retain edges only from nearest timestep 
 
-                best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
-                # get detection index to which highest scoring edge connects, and associate to it
-                y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1] 
+                    best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
+                    # get detection index to which highest scoring edge connects, and associate to it
+                    y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1]
 
     # update and decide on (finalize) tracking predictions upto timestep t_upto
     next_track_id = np.amax(y_out[:, 1])+1 # track id for next new track
