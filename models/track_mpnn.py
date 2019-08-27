@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from models.pointnet.model import PointNetfeatsmall
 from models.pygcn.layers import FactorGraphConvolution
@@ -28,4 +27,4 @@ class TrackMPNN(nn.Module):
         x = self.gc2(x, node_adj, edge_adj) # (N, 64)
         x = self.gc3(x, node_adj, edge_adj) # (N, 1)
 
-        return F.sigmoid(x)
+        return torch.sigmoid(x)
