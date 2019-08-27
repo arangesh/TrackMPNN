@@ -66,7 +66,7 @@ def train(model, epoch):
         # intialize graph and run first forward pass
         for t in range(t_init, t_end):
             # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='train', cuda=args.cuda)
+            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
             scores = model.forward(feats, node_adj, edge_adj)
             # compute the loss
             if args.tp_classifier:
@@ -148,7 +148,7 @@ def val(model, epoch):
         # intialize graph and run first forward pass
         for t in range(t_init, t_end):
             # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, mode='train', cuda=args.cuda)
+            y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
             scores = model.forward(feats, node_adj, edge_adj)
             scores = torch.exp(scores)
             if not args.tp_classifier:
@@ -163,9 +163,9 @@ def val(model, epoch):
             if not args.tp_classifier:
                 y_pred, feats, node_adj, labels, scores = prune_graph(feats, node_adj, labels, scores, y_pred, 0, t - 1, threshold=0.5, cuda=args.cuda)
             if t == t_end - 1:
-                y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_end, cuda=args.cuda)
+                y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_end, use_hungraian=args.hungarian, cuda=args.cuda)
             else:
-                y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t - args.timesteps + 2, cuda=args.cuda)
+                y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t - args.timesteps + 2, use_hungraian=args.hungarian, cuda=args.cuda)
             print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t - args.timesteps + 1), t_end))
         print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, t_end, t_end))
         # create results accumulator using predictions and GT for evaluation
