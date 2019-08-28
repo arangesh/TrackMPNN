@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from models.pointnet.model import PointNetfeatsmall
-from models.pygcn.layers import FactorGraphConvolution
+from models.layers import FactorGraphConvolution
 
 
 class TrackMPNN(nn.Module):
