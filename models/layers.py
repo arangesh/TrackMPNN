@@ -60,7 +60,7 @@ class FactorGraphConvolution(nn.Module):
             self.edge_bias = nn.Parameter(torch.FloatTensor(out_features))
         else:
             self.register_parameter('edge_bias', None)
-        self.activation = nn.PReLU()
+        self.activation = nn.ReLU()
         self.reset_parameters()
 
     def reset_parameters(self):
