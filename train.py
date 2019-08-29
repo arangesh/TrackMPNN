@@ -5,13 +5,15 @@ import statistics
 import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
-import torch.nn.functional as F
+#import torch.nn.functional as F
 
 from models.track_mpnn import TrackMPNN
 from dataset.kitti_mots import KittiMOTSDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics
 from utils.training_options import args
+from utils.loss import FocalLoss
+
 
 # This will set both cpu and gpu: https://pytorch.org/docs/stable/notes/randomness.html
 torch.manual_seed(args.seed)
@@ -54,11 +56,13 @@ def train(model, epoch):
         # compute the loss
         if args.tp_classifier:
             idx = torch.nonzero(labels != -1)[:, 0]
-            loss = F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
+            loss = focal_loss(scores[idx, 0], labels[idx])
+            #loss = F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
             scores = torch.cat((1-scores, scores), dim=1)
         else:
             idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
-            loss = F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
+            loss = focal_loss(scores[idx, 0], labels[idx])
+            #loss = F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
             scores = torch.cat((1-scores, scores), dim=1)
             ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
             scores[ids, 0] = 0
@@ -76,11 +80,13 @@ def train(model, epoch):
             # compute the loss
             if args.tp_classifier:
                 idx = torch.nonzero(labels != -1)[:, 0]
-                loss += F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
+                loss += focal_loss(scores[idx, 0], labels[idx])
+                #loss += F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
                 scores = torch.cat((1-scores, scores), dim=1)
             else:
                 idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
-                loss += F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
+                loss += focal_loss(scores[idx, 0], labels[idx])
+                #loss += F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
                 scores = torch.cat((1-scores, scores), dim=1)
                 ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
                 scores[ids, 0] = 0
@@ -213,6 +219,7 @@ if __name__ == '__main__':
     print(model)
 
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    focal_loss = FocalLoss(gamma=2, alpha=0.25, size_average=True)
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)
