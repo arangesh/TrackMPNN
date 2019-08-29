@@ -11,7 +11,7 @@ from dataset.kitti_mots import KittiMOTSDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics
 from utils.training_options import args
-from utils.loss import FocalLoss
+from models.loss import FocalLoss
 
 
 # This will set both cpu and gpu: https://pytorch.org/docs/stable/notes/randomness.html
