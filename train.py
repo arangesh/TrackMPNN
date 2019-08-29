@@ -5,13 +5,14 @@ import statistics
 import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
-import torch.nn.functional as F
 
 from models.track_mpnn import TrackMPNN
 from dataset.kitti_mots import KittiMOTSDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics
 from utils.training_options import args
+from utils.loss import FocalLoss
+
 
 # This will set both cpu and gpu: https://pytorch.org/docs/stable/notes/randomness.html
 torch.manual_seed(args.seed)
@@ -22,6 +23,11 @@ val_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'val', args.tim
 
 # global var to store best validation accuracy across all epochs
 best_mota = -float('Inf')
+# get float type for label conversion
+if args.cuda:
+    float_type = 'torch.cuda.FloatTensor'
+else:
+    float_type = 'torch.FloatTensor'
 
 
 # training function
@@ -49,12 +55,12 @@ def train(model, epoch):
         # compute the loss
         if args.tp_classifier:
             idx = torch.nonzero(labels != -1)[:, 0]
-            loss = F.nll_loss(scores[idx, :], labels[idx])
-            scores = torch.exp(scores)
+            loss = focal_loss(scores[idx, 0], labels[idx])
+            scores = torch.cat((1-scores, scores), dim=1)
         else:
             idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
-            loss = F.nll_loss(scores[idx, :], labels[idx])
-            scores = torch.exp(scores)
+            loss = focal_loss(scores[idx, 0], labels[idx])
+            scores = torch.cat((1-scores, scores), dim=1)
             ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
             scores[ids, 0] = 0
             scores[ids, 1] = 1
@@ -71,12 +77,12 @@ def train(model, epoch):
             # compute the loss
             if args.tp_classifier:
                 idx = torch.nonzero(labels != -1)[:, 0]
-                loss += F.nll_loss(scores[idx, :], labels[idx])
-                scores = torch.exp(scores)
+                loss += focal_loss(scores[idx, 0], labels[idx])
+                scores = torch.cat((1-scores, scores), dim=1)
             else:
                 idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
-                loss += F.nll_loss(scores[idx, :], labels[idx])
-                scores = torch.exp(scores)
+                loss += focal_loss(scores[idx, 0], labels[idx])
+                scores = torch.cat((1-scores, scores), dim=1)
                 ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
                 scores[ids, 0] = 0
                 scores[ids, 1] = 1
@@ -136,7 +142,7 @@ def val(model, epoch):
             continue
         # compute the classification scores
         scores = model.forward(feats, node_adj, edge_adj)
-        scores = torch.exp(scores)
+        scores = torch.cat((1-scores, scores), dim=1)
         if not args.tp_classifier:
             ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
             scores[ids, 0] = 0
@@ -150,7 +156,7 @@ def val(model, epoch):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
             scores = model.forward(feats, node_adj, edge_adj)
-            scores = torch.exp(scores)
+            scores = torch.cat((1-scores, scores), dim=1)
             if not args.tp_classifier:
                 ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
                 scores[ids, 0] = 0
@@ -199,7 +205,7 @@ def val(model, epoch):
 
 if __name__ == '__main__':
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeat=1 + 4 + 64 + 10 - 10 + 64, nhid=args.hidden, nclass=2)
+    model = TrackMPNN(nfeat=1 + 4 + 64 + 10 - 10 + 64, nhid=args.hidden)
 
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=False)
@@ -208,6 +214,7 @@ if __name__ == '__main__':
     print(model)
 
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    focal_loss = FocalLoss(gamma=2, alpha=0.25, size_average=True)
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)

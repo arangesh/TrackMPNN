@@ -1,13 +1,9 @@
 import math
-
 import torch
-
-from torch.nn.parameter import Parameter
-from torch.nn.modules.module import Module
-import torch.nn.functional as F
+import torch.nn as nn
 
 
-class GraphConvolution(Module):
+class GraphConvolution(nn.Module):
     """
     Simple GCN layer, similar to https://arxiv.org/abs/1609.02907
     """
@@ -15,9 +11,9 @@ class GraphConvolution(Module):
         super(GraphConvolution, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.weight = Parameter(torch.FloatTensor(in_features, out_features))
+        self.weight = nn.Parameter(torch.FloatTensor(in_features, out_features))
         if bias:
-            self.bias = Parameter(torch.FloatTensor(out_features))
+            self.bias = nn.Parameter(torch.FloatTensor(out_features))
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()
@@ -42,7 +38,7 @@ class GraphConvolution(Module):
                + str(self.out_features) + ')'
 
 
-class FactorGraphConvolution(Module):
+class FactorGraphConvolution(nn.Module):
     """
     Similar to GCN, except different weights for nodes and edges (i.e. variables and factors)
     """
@@ -52,18 +48,19 @@ class FactorGraphConvolution(Module):
         self.out_features = out_features
         self.msg_type = msg_type
         if self.msg_type == 'concat':
-            self.node_weight = Parameter(torch.FloatTensor(2*in_features, out_features))
+            self.node_weight = nn.Parameter(torch.FloatTensor(2*in_features, out_features))
         else:
-            self.node_weight = Parameter(torch.FloatTensor(in_features, out_features))
+            self.node_weight = nn.Parameter(torch.FloatTensor(in_features, out_features))
         if bias:
-            self.node_bias = Parameter(torch.FloatTensor(out_features))
+            self.node_bias = nn.Parameter(torch.FloatTensor(out_features))
         else:
             self.register_parameter('node_bias', None)
-        self.edge_weight = Parameter(torch.FloatTensor(in_features, out_features))
+        self.edge_weight = nn.Parameter(torch.FloatTensor(in_features, out_features))
         if bias:
-            self.edge_bias = Parameter(torch.FloatTensor(out_features))
+            self.edge_bias = nn.Parameter(torch.FloatTensor(out_features))
         else:
             self.register_parameter('edge_bias', None)
+        self.activation = nn.ReLU()
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -93,7 +90,7 @@ class FactorGraphConvolution(Module):
             edge_output = edge_output + self.edge_bias
 
         # Options for the activation function incldue: relu, leaky_relu, prelu, sigmoid, tanh
-        return F.relu(node_output) + edge_output
+        return self.activation(node_output) + edge_output
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' \
