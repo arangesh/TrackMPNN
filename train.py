@@ -30,11 +30,8 @@ else:
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
 def random_seed(seed_value, use_cuda):
     torch.manual_seed(seed_value)
-    if use_cuda: 
-        torch.cuda.manual_seed(seed_value)
-        torch.cuda.manual_seed_all(seed_value) # gpu vars
+    if use_cuda:
         torch.backends.cudnn.deterministic = True  #needed
-        torch.backends.cudnn.benchmark = False
 
 
 # training function
