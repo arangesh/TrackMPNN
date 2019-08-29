@@ -14,9 +14,6 @@ from utils.training_options import args
 from models.loss import FocalLoss
 
 
-# This will set both cpu and gpu: https://pytorch.org/docs/stable/notes/randomness.html
-torch.manual_seed(args.seed)
-
 kwargs = {'batch_size': 1, 'shuffle': True, 'num_workers': 1}
 train_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'train', args.timesteps), **kwargs)
 val_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'val', args.timesteps), **kwargs)
@@ -28,6 +25,16 @@ if args.cuda:
     float_type = 'torch.cuda.FloatTensor'
 else:
     float_type = 'torch.FloatTensor'
+
+
+# random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
+def random_seed(seed_value, use_cuda):
+    torch.manual_seed(seed_value)
+    if use_cuda: 
+        torch.cuda.manual_seed(seed_value)
+        torch.cuda.manual_seed_all(seed_value) # gpu vars
+        torch.backends.cudnn.deterministic = True  #needed
+        torch.backends.cudnn.benchmark = False
 
 
 # training function
@@ -204,6 +211,9 @@ def val(model, epoch):
 
 
 if __name__ == '__main__':
+    # for reproducibility
+    random_seed(args.seed, args.cuda)
+
     # get the model, load pretrained weights, and convert it into cuda for if necessary
     model = TrackMPNN(nfeat=1 + 4 + 64 + 10 - 10 + 64, nhid=args.hidden)
 
