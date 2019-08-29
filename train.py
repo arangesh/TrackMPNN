@@ -5,7 +5,6 @@ import statistics
 import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
-#import torch.nn.functional as F
 
 from models.track_mpnn import TrackMPNN
 from dataset.kitti_mots import KittiMOTSDataset
@@ -57,12 +56,10 @@ def train(model, epoch):
         if args.tp_classifier:
             idx = torch.nonzero(labels != -1)[:, 0]
             loss = focal_loss(scores[idx, 0], labels[idx])
-            #loss = F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
             scores = torch.cat((1-scores, scores), dim=1)
         else:
             idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
             loss = focal_loss(scores[idx, 0], labels[idx])
-            #loss = F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
             scores = torch.cat((1-scores, scores), dim=1)
             ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
             scores[ids, 0] = 0
@@ -81,12 +78,10 @@ def train(model, epoch):
             if args.tp_classifier:
                 idx = torch.nonzero(labels != -1)[:, 0]
                 loss += focal_loss(scores[idx, 0], labels[idx])
-                #loss += F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
                 scores = torch.cat((1-scores, scores), dim=1)
             else:
                 idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
                 loss += focal_loss(scores[idx, 0], labels[idx])
-                #loss += F.binary_cross_entropy(scores[idx, 0], labels[idx].type(float_type))
                 scores = torch.cat((1-scores, scores), dim=1)
                 ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
                 scores[ids, 0] = 0
