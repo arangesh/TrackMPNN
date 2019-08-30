@@ -10,7 +10,6 @@ from networkx.algorithms import bipartite
 # Debugging tool
 from IPython import embed
 
-
 def generate_track_association(y_in, y_out):
     '''
     :param y_in:  An np array of size [N, 2] where N is the no. of input detections
@@ -21,8 +20,6 @@ def generate_track_association(y_in, y_out):
     '''
     # Find the set of track ID's
     unique_track_IDs = set(y_out[:, 1])
-    print("Track IDs are: ", unique_track_IDs)
-
     # Initialize a list to contain info about track associations over different frames
     track_keeping = []
 
@@ -39,7 +36,6 @@ def generate_track_association(y_in, y_out):
 
     return track_keeping
 
-
 def generate_dynamic_graph(y_in, y_out):
     """
     This function dynamically generates bipartite graphs when an np.array of input and output detections are given
@@ -52,14 +48,14 @@ def generate_dynamic_graph(y_in, y_out):
     G = nx.Graph()
     # Extract unique frame ID's
     unique_frames = set(y_out[:, 0])
-
+    # embed()
     pos = {}  # hold position information of the nodes
     label_dict = {}  # label the nodes using their array indices
     counter = 0  # Just to maintain sanity
     track_keeping = generate_track_association(y_in, y_out)  # Generate association for maintaining the track
     label_list = [] # Meh! TODO Optimize the color coding code. That's an alliteration
 
-    # To color code the associated tracks
+    # To color code t he associated tracks
     color_map = ["b", "g", "r", "c", "m", "y", "b"]
     color_label = np.asarray(["w" for _ in range(len(y_out))])
     color_label = color_label.astype('<U5')
@@ -71,7 +67,7 @@ def generate_dynamic_graph(y_in, y_out):
         print("For frame no: ", i, "   ,Idx nodes are : ", idx)
 
         # Add nodes to bipartite set
-        curr_nodes = np.asarray(idx)[0]
+        curr_nodes = np.asarray(idx[0])
         G.add_nodes_from(list(curr_nodes), bipartite=i)
 
         # Update the position of the bipartite set
@@ -82,20 +78,18 @@ def generate_dynamic_graph(y_in, y_out):
     for idx, node in enumerate(G.nodes()):
         label_dict[node] = node
 
-    #TODO Please come up with a better solution
+    #TODO Needs a better solution
     for i in label_dict:
         label_list.append(i)
     label_array =  np.asarray(label_list)
 
-# Update the color map
-    print("Updating the color map")
+    # Update the color map
     for edge_list in track_keeping:
         track_color = color_map[randrange(len(color_map))]  # Color
         for n1, n2 in edge_list:
-            print(n1, " connect to ", n2)
-            print("Track color is: ", track_color)
+            print(n1, " connecting to ", n2)
             G.add_edge(n1, n2)  # Connect the edges
-            
+
             # Associate the nodes with the same color
             n1_idx = np.where(label_array == n1)
             n2_idx = np.where(label_array == n2)
