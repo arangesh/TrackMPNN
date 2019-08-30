@@ -14,6 +14,6 @@ if __name__ == '__main__':
 
     # Fake Data and called the graph visualization function
     y_out = np.vstack((frame_id, track_id)).T
-    y_in = y_out #For the time being...Such is life
+    y_in = y_out #Equal for the time being...Such is life
 
     generate_dynamic_graph(y_in, y_out)

@@ -13,8 +13,8 @@ from IPython import embed
 
 def generate_track_association(y_in, y_out):
     '''
-    :param y_in: np.array() containing ground truth or input detections
-    :param y_out: np.array() containing predicted detections, same as the length of y_in
+    :param y_in:  An np array of size [N, 2] where N is the no. of input detections
+    :param y_out: An np array of size [N, 2] , same as the length of y_in
     :return: list of detections belong to the same track
 
     #RIGHT NOW IT ASSOCIATES ONLY IF ALL TRACK IDS MATCH
@@ -42,9 +42,9 @@ def generate_track_association(y_in, y_out):
 
 def generate_dynamic_graph(y_in, y_out):
     """
-    This function dynamically generates bipartite graphs when an adjacency matrix
-    is given
-    :y_out:  contains detections in an np array of length equal to number of nodes
+    This function dynamically generates bipartite graphs when an np.array of input and output detections are given
+    :y_in:  An np array of size [N, 2] where N is the no. of  detections
+    :y_out: An np array of size [N, 2] where N is the no. of  detections
     :return: None; Just visual rendering of the graph
     """
 
