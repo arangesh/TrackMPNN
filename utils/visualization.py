@@ -47,8 +47,8 @@ def generate_dynamic_graph(y_in, y_out):
     # Greate your Bipartite graph object
     G = nx.Graph()
     # Extract unique frame ID's
-    unique_frames = set(y_out[:, 0])
-    # embed()
+    unique_frames = sorted(set(y_out[:, 0]))
+
     pos = {}  # hold position information of the nodes
     label_dict = {}  # label the nodes using their array indices
     counter = 0  # Just to maintain sanity
@@ -65,6 +65,7 @@ def generate_dynamic_graph(y_in, y_out):
         idx = np.where(y_out[:, 0] == i)
         print()
         print("For frame no: ", i, "   ,Idx nodes are : ", idx)
+        # embed()
 
         # Add nodes to bipartite set
         curr_nodes = np.asarray(idx[0])
