@@ -2,16 +2,18 @@ import torch
 import torch.nn as nn
 
 from models.pointnet.model import PointNetfeatsmall
-from models.layers import FactorGraphConvolution
+from models.layers import FactorGraphConvolution, FactorGraphResidual
 
 
 class TrackMPNN(nn.Module):
     def __init__(self, nfeat, nhid):
         super(TrackMPNN, self).__init__()
-        self.gc1 = FactorGraphConvolution(nfeat, nhid, bias=True, msg_type='concat')
-        self.gc2 = FactorGraphConvolution(nhid, nhid, bias=True, msg_type='concat')
-        self.gc3 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat')
         self.pointnet = PointNetfeatsmall()
+
+        # Options for the activation function incldue: nn.ReLU(), nn.LeakyReLU(), nn.PReLU(), nn.Sigmoid(), nn.Tanh()
+        self.gc1 = FactorGraphConvolution(nfeat, nhid, bias=True, msg_type='concat', activation=nn.ReLU())
+        self.gc2 = FactorGraphConvolution(nhid, nhid, bias=True, msg_type='concat', activation=nn.ReLU())
+        self.gc3 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=nn.ReLU())
 
     def forward(self, x, node_adj, edge_adj):
         conv_hull =  x[:, -10:] # (N, 10)
@@ -23,6 +25,7 @@ class TrackMPNN(nn.Module):
         else:
             conv_hull_feat, _, _ = self.pointnet(conv_hull) # (N, 64)
             x = torch.cat((x[:, :-10], conv_hull_feat), dim=1) # (N, F-10+64)
+
         x = self.gc1(x, node_adj, edge_adj) # (N, 64)
         x = self.gc2(x, node_adj, edge_adj) # (N, 64)
         x = self.gc3(x, node_adj, edge_adj) # (N, 1)
