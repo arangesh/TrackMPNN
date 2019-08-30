@@ -19,7 +19,6 @@ def generate_track_association(y_in, y_out):
 
     #RIGHT NOW IT ASSOCIATES ONLY IF ALL TRACK IDS MATCH
     '''
-
     # Find the set of track ID's
     unique_track_IDs = set(y_out[:, 1])
     print("Track IDs are: ", unique_track_IDs)
@@ -30,10 +29,11 @@ def generate_track_association(y_in, y_out):
     # Compare and assert the track association of y_out with y_in
     for id in unique_track_IDs:
         det_idx = np.where(y_out[:, 1] == id)[0]
-        print("curr_id: ", id, " corrensponding dets det_idx: ", det_idx)
+        # print("For curr_id: ", id, " corrensponding dets det_idx: ", det_idx)
 
         # Find correct track associations and create edges
-        if (y_in[det_idx][:, 1] == y_out[det_idx][:, 1]).all():
+        # if y_in's track ID's at indices det_idx matches, their length of set() shoulb be 1
+        if (len(set(y_in[det_idx][:, 1])) == 1):
             seq_edges = zip(list(det_idx), list(det_idx[1:]))
             track_keeping.append(seq_edges)
 
@@ -53,12 +53,14 @@ def generate_dynamic_graph(y_in, y_out):
     # Extract unique frame ID's
     unique_frames = set(y_out[:, 0])
 
-    pos = {}  # Initialize variable to hold groups of nodes
-    label_dict = {}  # label the nodes yo!
+    pos = {}  # hold position information of the nodes
+    label_dict = {}  # label the nodes using their array indices
     counter = 0  # Just to maintain sanity
     track_keeping = generate_track_association(y_in, y_out)  # Generate association for maintaining the track
-    # color_map = ["blue", "green", "red", "cyan", "magenta", "yellow", "black", "white"]
-    color_map = ["b", "g", "r", "c", "m", "y", "b", "w"]
+    label_list = [] # Meh! TODO Optimize the color coding code. That's an alliteration
+
+    # To color code the associated tracks
+    color_map = ["b", "g", "r", "c", "m", "y", "b"]
     color_label = np.asarray(["w" for _ in range(len(y_out))])
     color_label = color_label.astype('<U5')
 
@@ -66,7 +68,7 @@ def generate_dynamic_graph(y_in, y_out):
         # find indices that belong to the same frame
         idx = np.where(y_out[:, 0] == i)
         print()
-        print("Comparing frame no: ", i, "   ,Idx : ", idx)
+        print("For frame no: ", i, "   ,Idx nodes are : ", idx)
 
         # Add nodes to bipartite set
         curr_nodes = np.asarray(idx)[0]
@@ -80,19 +82,26 @@ def generate_dynamic_graph(y_in, y_out):
     for idx, node in enumerate(G.nodes()):
         label_dict[node] = node
 
-    # Update the color map
+    #TODO Please come up with a better solution
+    for i in label_dict:
+        label_list.append(i)
+    label_array =  np.asarray(label_list)
+
+# Update the color map
     print("Updating the color map")
     for edge_list in track_keeping:
+        track_color = color_map[randrange(len(color_map))]  # Color
         for n1, n2 in edge_list:
             print(n1, " connect to ", n2)
+            print("Track color is: ", track_color)
             G.add_edge(n1, n2)  # Connect the edges
-            track_color = color_map[randrange(len(color_map))]  # Color
-
+            
             # Associate the nodes with the same color
-            color_label[n1] = track_color
-            color_label[n2] = track_color
+            n1_idx = np.where(label_array == n1)
+            n2_idx = np.where(label_array == n2)
+            color_label[n1_idx] = track_color
+            color_label[n2_idx] = track_color
 
-    embed()
     # Draw and Visualize the graph
     plt.subplot(121)
     nx.draw(G, pos=pos, labels=label_dict, node_color=color_label)
