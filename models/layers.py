@@ -136,9 +136,6 @@ class FactorGraphResidual(nn.Module):
             self.edge_bias.data.uniform_(-stdv, stdv)
 
     def forward(self, feats, node_adj, edge_adj):
-        diag_ind = (torch.arange(node_adj.size()[0]), torch.arange(node_adj.size()[0]))
-        node_adj[diag_ind] = 0
-        edge_adj[diag_ind] = 0
         if self.msg_type == 'concat':
             node_support = torch.cat((torch.spmm((node_adj > 0).float(), feats), 
                 torch.spmm((node_adj < 0).float(), feats)), dim=1)
