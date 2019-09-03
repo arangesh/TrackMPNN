@@ -6,7 +6,7 @@ from models.layers import FactorGraphConvolution, FactorGraphResidual
 
 
 class TrackMPNN(nn.Module):
-    def __init__(self, nfeat, nhid):
+    def __init__(self, nfeat, nhid, cuda=True):
         super(TrackMPNN, self).__init__()
         self.pointnet = PointNetfeatsmall()
 
@@ -21,10 +21,11 @@ class TrackMPNN(nn.Module):
         #self.gc4 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=None)
 
         self.output_activation = nn.Sigmoid()
+        self.cuda = cuda
 
-    def forward(self, x, node_adj, edge_adj, cuda=True):
+    def forward(self, x, node_adj, edge_adj):
         conv_hull =  x[:, -10:] # (N, 10)
-        if cuda:
+        if self.cuda:
             conv_hull = torch.cat((conv_hull.view(-1, 2, 5), torch.zeros(conv_hull.size()[0], 1, 5).cuda()), dim=1) # (N, 3, 5)
         else:
             conv_hull = torch.cat((conv_hull.view(-1, 2, 5), torch.zeros(conv_hull.size()[0], 1, 5)), dim=1) # (N, 3, 5)
