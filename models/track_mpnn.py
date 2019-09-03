@@ -15,9 +15,19 @@ class TrackMPNN(nn.Module):
         self.gc2 = FactorGraphConvolution(nhid, nhid, bias=True, msg_type='concat', activation=nn.ReLU())
         self.gc3 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=nn.ReLU())
 
-    def forward(self, x, node_adj, edge_adj):
+        #self.gc1 = FactorGraphConvolution(nfeat, nhid, bias=True, msg_type='concat', activation=nn.ReLU())
+        #self.gc2 = FactorGraphResidual(nhid, bias=True, msg_type='concat', activation=nn.ReLU())
+        #self.gc3 = FactorGraphResidual(nhid, bias=True, msg_type='concat', activation=nn.ReLU())
+        #self.gc4 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=None)
+
+        self.output_activation = nn.Sigmoid()
+
+    def forward(self, x, node_adj, edge_adj, cuda=True):
         conv_hull =  x[:, -10:] # (N, 10)
-        conv_hull = torch.cat((conv_hull.view(-1, 2, 5), torch.zeros(conv_hull.size()[0], 1, 5).cuda()), dim=1) # (N, 3, 5)
+        if cuda:
+            conv_hull = torch.cat((conv_hull.view(-1, 2, 5), torch.zeros(conv_hull.size()[0], 1, 5).cuda()), dim=1) # (N, 3, 5)
+        else:
+            conv_hull = torch.cat((conv_hull.view(-1, 2, 5), torch.zeros(conv_hull.size()[0], 1, 5)), dim=1) # (N, 3, 5)
         # batchnorm does not work if N=1 (workaround)
         if conv_hull.size()[0] == 1:
             conv_hull_feat, _, _ = self.pointnet(torch.cat((conv_hull, conv_hull), 0)) # (2, 64)
@@ -30,4 +40,14 @@ class TrackMPNN(nn.Module):
         x = self.gc2(x, node_adj, edge_adj) # (N, 64)
         x = self.gc3(x, node_adj, edge_adj) # (N, 1)
 
-        return torch.sigmoid(x)
+        #diag_ind = (torch.arange(node_adj.size()[0]), torch.arange(node_adj.size()[0]))
+        #node_adj_res = node_adj
+        #edge_adj_res = edge_adj
+        #node_adj_res[diag_ind] = 0
+        #edge_adj_res[diag_ind] = 0
+        #x = self.gc1(x, node_adj, edge_adj) # (N, 64)
+        #x = self.gc2(x, node_adj_res, edge_adj_res) # (N, 64)
+        #x = self.gc3(x, node_adj_res, edge_adj_res) # (N, 64)
+        #x = self.gc4(x, node_adj, edge_adj) # (N, 1)
+
+        return self.output_activation(x)
