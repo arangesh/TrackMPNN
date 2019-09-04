@@ -3,12 +3,15 @@
 
 import numpy as np
 import networkx as nx
+import matplotlib
+from random import shuffle
 from random import randrange
 import matplotlib.pyplot as plt
 from networkx.algorithms import bipartite
 
 # Debugging tool
 from IPython import embed
+
 
 def generate_track_association(y_in, y_out):
     '''
@@ -36,6 +39,7 @@ def generate_track_association(y_in, y_out):
 
     return track_keeping
 
+
 def generate_dynamic_graph(y_in, y_out):
     """
     This function dynamically generates bipartite graphs when an np.array of input and output detections are given
@@ -53,12 +57,22 @@ def generate_dynamic_graph(y_in, y_out):
     label_dict = {}  # label the nodes using their array indices
     counter = 0  # Just to maintain sanity
     track_keeping = generate_track_association(y_in, y_out)  # Generate association for maintaining the track
-    label_list = [] # Meh! TODO Optimize the color coding code. That's an alliteration
+    label_list = []  # Meh! TODO Optimize the color coding code. That's an alliteration
 
     # To color code t he associated tracks
-    color_map = ["b", "g", "r", "c", "m", "y", "b"]
-    color_label = np.asarray(["w" for _ in range(len(y_out))])
-    color_label = color_label.astype('<U5')
+    # color_map = ["b", "g", "r", "c", "m", "y", "b"]
+    # color_label = np.asarray(["w" for _ in range(len(y_out))])
+    # color_label = color_label.astype('<U5')
+
+    # To color code the associated tracks
+    # Choose the max num of tracks
+    num_tracks = np.amax(y_in[:, 1]) + 1
+    color_label = [list((matplotlib.colors.hsv_to_rgb([x, 1.0, 1.0]))) + [1.0] for x in
+                   np.arange(0, 1, 1.0 / num_tracks)]
+
+    shuffle(color_label)
+
+    color_label_arr = np.ones((y_out.shape[0], 4))
 
     for i in unique_frames:
         # find indices that belong to the same frame
@@ -79,25 +93,27 @@ def generate_dynamic_graph(y_in, y_out):
     for idx, node in enumerate(G.nodes()):
         label_dict[node] = node
 
-    #TODO Needs a better solution
+    # TODO Needs a better solution
     for i in label_dict:
         label_list.append(i)
-    label_array =  np.asarray(label_list)
+    label_array = np.asarray(label_list)
 
     # Update the color map
     for edge_list in track_keeping:
-        track_color = color_map[randrange(len(color_map))]  # Color
+        # track_color = color_map[randrange(len(color_map))]  # Color
         for n1, n2 in edge_list:
             print(n1, " connecting to ", n2)
             G.add_edge(n1, n2)  # Connect the edges
 
             # Associate the nodes with the same color
-            n1_idx = np.where(label_array == n1)
-            n2_idx = np.where(label_array == n2)
-            color_label[n1_idx] = track_color
-            color_label[n2_idx] = track_color
+            n1_idx = np.where(label_array == n1)[0][0]
+            n2_idx = np.where(label_array == n2)[0][0]
+            # embed()
+            track_color = color_label[y_in[n1][1]]  # Color
+            color_label_arr[n1_idx] = track_color
+            color_label_arr[n2_idx] = track_color
 
     # Draw and Visualize the graph
     plt.subplot(111)
-    nx.draw(G, pos=pos, labels=label_dict, node_color=color_label)
+    nx.draw(G, pos=pos, labels=label_dict, node_color=color_label_arr)
     plt.show()
