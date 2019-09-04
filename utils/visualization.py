@@ -98,6 +98,6 @@ def generate_dynamic_graph(y_in, y_out):
             color_label[n2_idx] = track_color
 
     # Draw and Visualize the graph
-    plt.subplot(121)
+    plt.subplot(111)
     nx.draw(G, pos=pos, labels=label_dict, node_color=color_label)
     plt.show()
