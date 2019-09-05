@@ -20,7 +20,7 @@ class TrackMPNN(nn.Module):
         #self.gc1 = FactorGraphConvolution(nfeat, nhid, bias=True, msg_type='concat', activation=nn.ReLU())
         #self.gc2 = FactorGraphResidual(nhid, bias=True, msg_type='concat', activation=nn.ReLU())
         #self.gc3 = FactorGraphResidual(nhid, bias=True, msg_type='concat', activation=nn.ReLU())
-        #self.gc4 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=nn.ReLU())
+        #self.gc4 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=None)
         #nn.init.constant_(self.gc4.node_bias.data, -4.595) # -log((1 - p)/ p) with p=0.01 from Focal Loss paper
         #nn.init.constant_(self.gc4.edge_bias.data, +4.595) # +log((1 - p)/ p) with p=0.01 from Focal Loss paper
 
