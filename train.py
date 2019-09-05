@@ -56,38 +56,40 @@ def train(model, epoch):
             continue
         scores = model.forward(feats, node_adj, edge_adj)
         # compute the loss
+        idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
+        idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
         if args.tp_classifier:
-            idx = torch.nonzero(labels != -1)[:, 0]
-            loss = focal_loss(scores[idx, 0], labels[idx])
+            loss = focal_loss_node(scores[idx_node, 0], labels[idx_node]) + focal_loss_edge(scores[idx_edge, 0], labels[idx_edge])
             scores = torch.cat((1-scores, scores), dim=1)
+            idx = torch.cat((idx_node, idx_edge))
         else:
-            idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
-            loss = focal_loss(scores[idx, 0], labels[idx])
+            loss = focal_loss_edge(scores[idx_edge, 0], labels[idx_edge])
             scores = torch.cat((1-scores, scores), dim=1)
-            ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
-            scores[ids, 0] = 0
-            scores[ids, 1] = 1
-
+            scores[idx_node, 0] = 0
+            scores[idx_node, 1] = 1
+            idx = idx_edge
         # compute the f1 score
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
         epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
-        # intialize graph and run first forward pass
+
+        # loop through all frames
         for t in range(t_init, t_end):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
             scores = model.forward(feats, node_adj, edge_adj)
             # compute the loss
+            idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
+            idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
             if args.tp_classifier:
-                idx = torch.nonzero(labels != -1)[:, 0]
-                loss += focal_loss(scores[idx, 0], labels[idx])
+                loss += (focal_loss_node(scores[idx_node, 0], labels[idx_node]) + focal_loss_edge(scores[idx_edge, 0], labels[idx_edge]))
                 scores = torch.cat((1-scores, scores), dim=1)
+                idx = torch.cat((idx_node, idx_edge))
             else:
-                idx = torch.nonzero((y_pred[:, 0] == -1) & (labels != -1))[:, 0]
-                loss += focal_loss(scores[idx, 0], labels[idx])
+                loss += focal_loss_edge(scores[idx_edge, 0], labels[idx_edge])
                 scores = torch.cat((1-scores, scores), dim=1)
-                ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
-                scores[ids, 0] = 0
-                scores[ids, 1] = 1
+                scores[idx_node, 0] = 0
+                scores[idx_node, 1] = 1
+                idx = idx_edge
             # compute the F1 score
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
@@ -143,26 +145,37 @@ def val(model, epoch):
         # compute the classification scores
         scores = model.forward(feats, node_adj, edge_adj)
         scores = torch.cat((1-scores, scores), dim=1)
-        if not args.tp_classifier:
-            ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
-            scores[ids, 0] = 0
-            scores[ids, 1] = 1
+
+        idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
+        idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
+        if args.tp_classifier:
+            idx = torch.cat((idx_node, idx_edge))
+        else:
+            scores[idx_node, 0] = 0
+            scores[idx_node, 1] = 1
+            idx = idx_edge
         # compute the f1 score
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
-        epoch_f1.append(f1_score(labels.detach().cpu().numpy(), pred.detach().cpu().numpy()))
-        # intialize graph and run first forward pass
+        epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+
+        # loop through all frames
         for t in range(t_init, t_end):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
             scores = model.forward(feats, node_adj, edge_adj)
             scores = torch.cat((1-scores, scores), dim=1)
-            if not args.tp_classifier:
-                ids = torch.nonzero(y_pred[:, 0] != -1)[:, 0]
-                scores[ids, 0] = 0
-                scores[ids, 1] = 1
+
+            idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
+            idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
+            if args.tp_classifier:
+                idx = torch.cat((idx_node, idx_edge))
+            else:
+                scores[idx_node, 0] = 0
+                scores[idx_node, 1] = 1
+                idx = idx_edge
             # compute the f1 score
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
-            epoch_f1.append(f1_score(labels.detach().cpu().numpy(), pred.detach().cpu().numpy()))
+            epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
             if t == t_end - 1:
                 y_pred, y_out, feats, node_adj, labels, scores = decode_tracks(feats, node_adj, labels, scores, y_pred, y_out, t_end, use_hungraian=args.hungarian, cuda=args.cuda)
             else:
@@ -210,7 +223,8 @@ if __name__ == '__main__':
     print(model)
 
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-    focal_loss = FocalLoss(gamma=2, alpha=0.25, size_average=True)
+    focal_loss_node = FocalLoss(gamma=2, alpha=0.25, size_average=True)
+    focal_loss_edge = FocalLoss(gamma=2, alpha=0.75, size_average=True)
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)
