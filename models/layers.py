@@ -64,15 +64,12 @@ class FactorGraphConvolution(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        stdv = 1. / math.sqrt(self.node_weight.size(1))
-        self.node_weight.data.uniform_(-stdv, stdv)
+        self.node_weight.data.normal_(mean=0.0, std=0.01)
         if self.node_bias is not None:
-            self.node_bias.data.uniform_(-stdv, stdv)
-
-        stdv = 1. / math.sqrt(self.edge_weight.size(1))
-        self.edge_weight.data.uniform_(-stdv, stdv)
+            self.node_bias.data.uniform_(0, 0)
+        self.edge_weight.data.normal_(mean=0.0, std=0.01)
         if self.edge_bias is not None:
-            self.edge_bias.data.uniform_(-stdv, stdv)
+            self.edge_bias.data.uniform_(0, 0)
 
     def forward(self, feats, node_adj, edge_adj):
         if self.msg_type == 'concat':
@@ -125,15 +122,12 @@ class FactorGraphResidual(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        stdv = 1. / math.sqrt(self.node_weight.size(1))
-        self.node_weight.data.uniform_(-stdv, stdv)
+        self.node_weight.data.normal_(mean=0.0, std=0.01)
         if self.node_bias is not None:
-            self.node_bias.data.uniform_(-stdv, stdv)
-
-        stdv = 1. / math.sqrt(self.edge_weight.size(1))
-        self.edge_weight.data.uniform_(-stdv, stdv)
+            self.node_bias.data.uniform_(0, 0)
+        self.edge_weight.data.normal_(mean=0.0, std=0.01)
         if self.edge_bias is not None:
-            self.edge_bias.data.uniform_(-stdv, stdv)
+            self.edge_bias.data.uniform_(0, 0)
 
     def forward(self, feats, node_adj, edge_adj):
         if self.msg_type == 'concat':
