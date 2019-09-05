@@ -21,11 +21,6 @@ val_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'val', args.tim
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
-# get float type for label conversion
-if args.cuda:
-    float_type = 'torch.cuda.FloatTensor'
-else:
-    float_type = 'torch.FloatTensor'
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
