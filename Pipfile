@@ -12,6 +12,7 @@ pillow = "*"
 matplotlib = "*"
 scipy = "*"
 motmetrics = "*"
+sklearn = "*"
 
 [requires]
 python_version = "3.6"
