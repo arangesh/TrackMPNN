@@ -9,6 +9,7 @@ from random import randrange
 import matplotlib.pyplot as plt
 from networkx.algorithms import bipartite
 
+
 def generate_track_association(y_in, y_out):
     '''
     :param y_in:  An np array of size [N, 2] where N is the no. of input detections
@@ -51,10 +52,10 @@ def generate_dynamic_graph(y_in, y_out):
     unique_frames = sorted(set(y_out[:, 0]))
 
     pos = {}  # hold position information of the nodes
-    pos_frame_label = {} #position information for the frame labels
+    pos_frame_label = {}  # position information for the frame labels
 
     node_label_dict = {}  # label the nodes using their array indices
-    frame_label_dict = {} #label the frames incrementally
+    frame_label_dict = {}  # label the frames incrementally
 
     counter = 0  # Just to maintain sanity
     track_keeping = generate_track_association(y_in, y_out)  # Generate association for maintaining the track
@@ -83,7 +84,7 @@ def generate_dynamic_graph(y_in, y_out):
         # Update the position of the bipartite set
         counter += 1
         pos.update((node, (counter, index)) for index, node in enumerate(set(curr_nodes.flatten())))
-        pos_frame_label.update((i, (counter, index-0.2)) for index, node in enumerate(set(np.array((i,i))))) #TODO
+        pos_frame_label.update((i, (counter, index - 0.3)) for index, node in enumerate(set(np.array((i, i)))))  # TODO
 
     # Update the node labels
     for idx, node in enumerate(G.nodes()):
@@ -96,7 +97,6 @@ def generate_dynamic_graph(y_in, y_out):
     for i in node_label_dict:
         label_list.append(i)
     label_array = np.asarray(label_list)
-
 
     # Update the color map
     for edge_list in track_keeping:
@@ -114,10 +114,14 @@ def generate_dynamic_graph(y_in, y_out):
             color_label_arr[n2_idx] = track_color
 
     # Draw and Visualize the graph
-    f = plt.figure(figsize=(15,10))
+    f = plt.figure(figsize=(15, 10))
     ax = f.add_subplot(111)
-    ax.set_ylabel("time ----->") #Not working
+    # ax.set_ylabel("time ----->") #Not working
+    plt.title('Time --------------------------->', loc='left', ha='center', va='bottom', x=0.5, y=0, fontsize='medium', fontfamily='cursive', fontweight='light', color='B')
+    plt.xlabel('categories')
+    plt.ylabel('values')
 
     nx.draw(G, pos=pos, labels=node_label_dict, node_color=color_label_arr)
-    nx.draw(G_frame_label, pos=pos_frame_label, labels = frame_label_dict, font_size=9, font_color='b', font='Comic Sans MS', node_color='w')
+    nx.draw(G_frame_label, pos=pos_frame_label, labels=frame_label_dict, font_size=9, font_color='b',
+            font='Comic Sans MS', node_color='w')
     plt.show()
