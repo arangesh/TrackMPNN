@@ -13,12 +13,16 @@ class TrackMPNN(nn.Module):
         # Options for the activation function incldue: nn.ReLU(), nn.LeakyReLU(), nn.PReLU(), nn.Sigmoid(), nn.Tanh()
         self.gc1 = FactorGraphConvolution(nfeat, nhid, bias=True, msg_type='concat', activation=nn.ReLU())
         self.gc2 = FactorGraphConvolution(nhid, nhid, bias=True, msg_type='concat', activation=nn.ReLU())
-        self.gc3 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=nn.ReLU())
+        self.gc3 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=None)
+        nn.init.constant_(self.gc3.node_bias.data, -4.595) # -log((1 - p)/ p) with p=0.01 from Focal Loss paper
+        nn.init.constant_(self.gc3.edge_bias.data, +4.595) # +log((1 - p)/ p) with p=0.01 from Focal Loss paper
 
         #self.gc1 = FactorGraphConvolution(nfeat, nhid, bias=True, msg_type='concat', activation=nn.ReLU())
         #self.gc2 = FactorGraphResidual(nhid, bias=True, msg_type='concat', activation=nn.ReLU())
         #self.gc3 = FactorGraphResidual(nhid, bias=True, msg_type='concat', activation=nn.ReLU())
-        #self.gc4 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=None)
+        #self.gc4 = FactorGraphConvolution(nhid, 1, bias=True, msg_type='concat', activation=nn.ReLU())
+        #nn.init.constant_(self.gc4.node_bias.data, -4.595) # -log((1 - p)/ p) with p=0.01 from Focal Loss paper
+        #nn.init.constant_(self.gc4.edge_bias.data, +4.595) # +log((1 - p)/ p) with p=0.01 from Focal Loss paper
 
         self.output_activation = nn.Sigmoid()
 
