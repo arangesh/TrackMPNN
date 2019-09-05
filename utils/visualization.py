@@ -9,10 +9,6 @@ from random import randrange
 import matplotlib.pyplot as plt
 from networkx.algorithms import bipartite
 
-# Debugging tool
-from IPython import embed
-
-
 def generate_track_association(y_in, y_out):
     '''
     :param y_in:  An np array of size [N, 2] where N is the no. of input detections
@@ -50,28 +46,27 @@ def generate_dynamic_graph(y_in, y_out):
 
     # Greate your Bipartite graph object
     G = nx.Graph()
+    G_frame_label = nx.Graph()
     # Extract unique frame ID's
     unique_frames = sorted(set(y_out[:, 0]))
 
     pos = {}  # hold position information of the nodes
-    label_dict = {}  # label the nodes using their array indices
+    pos_frame_label = {} #position information for the frame labels
+
+    node_label_dict = {}  # label the nodes using their array indices
+    frame_label_dict = {} #label the frames incrementally
+
     counter = 0  # Just to maintain sanity
     track_keeping = generate_track_association(y_in, y_out)  # Generate association for maintaining the track
-    label_list = []  # Meh! TODO Optimize the color coding code. That's an alliteration
+    label_list = []  # Meh! TODO Optimize the color coding code. "color coding code" - That's an alliteration
 
-    # To color code t he associated tracks
-    # color_map = ["b", "g", "r", "c", "m", "y", "b"]
-    # color_label = np.asarray(["w" for _ in range(len(y_out))])
-    # color_label = color_label.astype('<U5')
-
-    # To color code the associated tracks
     # Choose the max num of tracks
     num_tracks = np.amax(y_in[:, 1]) + 1
+
+    # To color code the associated tracks
     color_label = [list((matplotlib.colors.hsv_to_rgb([x, 1.0, 1.0]))) + [1.0] for x in
                    np.arange(0, 1, 1.0 / num_tracks)]
-
     shuffle(color_label)
-
     color_label_arr = np.ones((y_out.shape[0], 4))
 
     for i in unique_frames:
@@ -79,24 +74,29 @@ def generate_dynamic_graph(y_in, y_out):
         idx = np.where(y_out[:, 0] == i)
         print()
         print("For frame no: ", i, "   ,Idx nodes are : ", idx)
-        # embed()
 
         # Add nodes to bipartite set
         curr_nodes = np.asarray(idx[0])
         G.add_nodes_from(list(curr_nodes), bipartite=i)
+        G_frame_label.add_node(i, bipartite=i)
 
         # Update the position of the bipartite set
         counter += 1
         pos.update((node, (counter, index)) for index, node in enumerate(set(curr_nodes.flatten())))
+        pos_frame_label.update((i, (counter, index-0.2)) for index, node in enumerate(set(np.array((i,i))))) #TODO
 
     # Update the node labels
     for idx, node in enumerate(G.nodes()):
-        label_dict[node] = node
+        node_label_dict[node] = node
+
+    for idx, node in enumerate(G_frame_label.nodes()):
+        frame_label_dict[node] = "f_" + str(idx)
 
     # TODO Needs a better solution
-    for i in label_dict:
+    for i in node_label_dict:
         label_list.append(i)
     label_array = np.asarray(label_list)
+
 
     # Update the color map
     for edge_list in track_keeping:
@@ -115,6 +115,9 @@ def generate_dynamic_graph(y_in, y_out):
 
     # Draw and Visualize the graph
     f = plt.figure(figsize=(15,10))
-    f.add_subplot(111)
-    nx.draw(G, pos=pos, labels=label_dict, node_color=color_label_arr)
+    ax = f.add_subplot(111)
+    ax.set_ylabel("time ----->") #Not working
+
+    nx.draw(G, pos=pos, labels=node_label_dict, node_color=color_label_arr)
+    nx.draw(G_frame_label, pos=pos_frame_label, labels = frame_label_dict, font_size=9, font_color='b', font='Comic Sans MS', node_color='w')
     plt.show()
