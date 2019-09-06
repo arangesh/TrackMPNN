@@ -219,7 +219,7 @@ if __name__ == '__main__':
 
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     focal_loss_node = FocalLoss(gamma=2, alpha=0.25, size_average=True)
-    focal_loss_edge = FocalLoss(gamma=2, alpha=0.75, size_average=True)
+    focal_loss_edge = FocalLoss(gamma=2, alpha=0.25, size_average=True)
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)
