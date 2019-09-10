@@ -95,7 +95,7 @@ def hungarian(node_adj, scores, y_pred, t, threshold=0.5):
     return y_pred
 
 
-def initialize_graph(X, y, mode='test', cuda=True):
+def initialize_graph(X, y, cuda=True):
     """
     This is a function for initializing the graph on which to perform
     message passing operations.
@@ -172,24 +172,21 @@ def initialize_graph(X, y, mode='test', cuda=True):
     edge_adj = edge_adj + I_edge
 
     # initialize labels
-    if mode == 'train':
-        labels = torch.zeros((feats.size()[0],), dtype=torch.int64) # (1, N0+N0*N1+N1)
-        if cuda:
-            labels = labels.cuda()
-        y_t0 = y[0, ids_t0, :] # (N0, 2)
-        y_t1 = y[0, ids_t1, :] # (N1, 2)
-        labels[:num_dets_t0] = y_t0[:, 1] >= 0
-        labels[num_dets_t0+num_dets_t0*num_dets_t1:] = y_t1[:, 1] >= 0
-        for i in range(num_dets_t1):
-            if y_t1[i, 1] == -1: # if a false positive, no edge is positive
-                continue
-            idx = torch.nonzero(y_t0[:, 1] == y_t1[i, 1])[:, 0]
-            if idx.size()[0] == 1:
-                labels[num_dets_t0+idx[0]*num_dets_t1+i] = 1
-            elif idx.size()[0] > 1:
-                assert False, "More than one detection from same timestep assinged to same track!"
-    else:
-        labels = None
+    labels = torch.zeros((feats.size()[0],), dtype=torch.int64) # (1, N0+N0*N1+N1)
+    if cuda:
+        labels = labels.cuda()
+    y_t0 = y[0, ids_t0, :] # (N0, 2)
+    y_t1 = y[0, ids_t1, :] # (N1, 2)
+    labels[:num_dets_t0] = y_t0[:, 1] >= 0
+    labels[num_dets_t0+num_dets_t0*num_dets_t1:] = y_t1[:, 1] >= 0
+    for i in range(num_dets_t1):
+        if y_t1[i, 1] == -1: # if a false positive, no edge is positive
+            continue
+        idx = torch.nonzero(y_t0[:, 1] == y_t1[i, 1])[:, 0]
+        if idx.size()[0] == 1:
+            labels[num_dets_t0+idx[0]*num_dets_t1+i] = 1
+        elif idx.size()[0] > 1:
+            assert False, "More than one detection from same timestep assinged to same track!"
 
     return y_pred, feats, node_adj, edge_adj, labels, t1+1, tN+1
 
@@ -236,31 +233,52 @@ def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, use_hungraian
 
     # y_pred_t-1 <-- update(scores_t-1)
     y_pred[:, 2] = -1
-    if use_hungraian:
-        for t_match in range(y_pred[0, 0], y_pred[-1, 0]):
-            y_pred = hungarian(node_adj, scores, y_pred, t_match, threshold=0.5)
-    else:
+    if mode == 'train': # during training, make use of the ground truth to update graph
         for i in range(y_pred.shape[0]):
             if y_pred[i, 0] < 0: # if edge node, continue
                 continue
-            if scores[i, 1] >= 0.5: # if detection is a true positive
+            if labels[i]: # if detection is a true positive
                 ids = np.where(node_adj[i+1:, i])[0]+i+1 # find edge nodes it is connected to
-                idx = np.where(scores[ids, 1] >= 0.5)[0] # find edges with +ve label
+                idx = np.where(labels[ids])[0] # find edges with +ve label
                 idx = ids[idx] # actual indices of all +ve edges
-                # only retain edges that connect to a true positive detection
-                idx = np.array([x for x in idx if scores[np.where(node_adj[x, :])[0][-1], 1] >= 0.5], dtype='int64')
-                if idx.size > 0: # if positive association exists
-                    idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # find all detection nodes
-                    idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after first positive edge
-                    idx = idx[idx < idx_next_det[0]] # retain edges only from nearest timestep 
+                if idx.size == 0: # if no positive association exists
+                    continue
+                elif idx.size == 1: # if positive association exists
+                    y_pred[i, 2] = y_pred[np.where(node_adj[idx, :])[0][-1], 1]
+                else:
+                    assert False, "More than one GT edge from same node!"
+            else: # if detection is false positive
+                y_pred[i, 2] = y_pred[i, 1] # self assignment so that it remains inactive
+    else: # during inference, make use of previous mdoel predictions to update graph
+        if use_hungraian:
+            for t_match in range(y_pred[0, 0], y_pred[-1, 0]):
+                y_pred = hungarian(node_adj, scores, y_pred, t_match, threshold=0.5)
+        else:
+            for i in range(y_pred.shape[0]):
+                if y_pred[i, 0] < 0: # if edge node, continue
+                    continue
+                if scores[i, 1] >= 0.5: # if detection is a true positive
+                    ids = np.where(node_adj[i+1:, i])[0]+i+1 # find edge nodes it is connected to
+                    idx = np.where(scores[ids, 1] >= 0.5)[0] # find edges with +ve label
+                    idx = ids[idx] # actual indices of all +ve edges
+                    # only retain edges that connect to a true positive detection
+                    idx = np.array([x for x in idx if scores[np.where(node_adj[x, :])[0][-1], 1] >= 0.5], dtype='int64')
+                    if idx.size > 0: # if positive association exists
+                        idx_next_det = np.where(y_pred[:, 0] >= 0)[0] # find all detection nodes
+                        idx_next_det = idx_next_det[idx_next_det > idx[0]] # find first detection after first positive edge
+                        idx = idx[idx < idx_next_det[0]] # retain edges only from nearest timestep 
 
-                    best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
-                    # get detection index to which highest scoring edge connects, and associate to it
-                    y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1]
+                        best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
+                        # get detection index to which highest scoring edge connects, and associate to it
+                        y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1]
 
     num_past = y_pred.shape[0]
-    # find true positive detections that are not yet associated, and make them available for association at time t
-    ids_active_pred = np.where(np.logical_and(np.logical_and(y_pred[:, 0] != -1, y_pred[:, 2] == -1), scores[:, 1] >= 0.5))[0]
+    if mode == 'train':
+        # find true positive detections that are not yet associated, and make them available for association at time t
+        ids_active_pred = np.where(np.logical_and(np.logical_and(y_pred[:, 0] != -1, y_pred[:, 2] == -1), labels[i] == 1))[0]
+    else:
+        # find true positive detections that are not yet associated, and make them available for association at time t
+        ids_active_pred = np.where(np.logical_and(np.logical_and(y_pred[:, 0] != -1, y_pred[:, 2] == -1), scores[:, 1] >= 0.5))[0]
     num_dets_active = ids_active_pred.size
     ids_t = np.where(y[:, 0] == t)[0]
     num_dets_t = ids_t.size
@@ -304,7 +322,7 @@ def update_graph(feats, node_adj, labels, scores, y_pred, X, y, t, use_hungraian
     edge_adj = edge_adj + I_edge
 
     # labels_t <-- labels_t-1
-    if mode == 'train':
+    if labels is not None:
         if num_dets_t != 0:
             labels = np.concatenate((labels, np.zeros((pad_size,), dtype='int64')), 0)
             y_active = y[y_pred[ids_active_pred, 1].detach().cpu().numpy().astype('int64'), :]
