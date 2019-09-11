@@ -33,6 +33,8 @@ class FactorGraphGRU(nn.Module):
             self.node_gru.bias_hh.data.uniform_(0, 0)
 
     def forward(self, h, node_adj, edge_adj):
+        node_adj = node_adj.to_dense()
+        edge_adj = edge_adj.to_dense()
         I_node = torch.diag(torch.diag(node_adj))
         I_edge = torch.diag(torch.diag(edge_adj))
 
