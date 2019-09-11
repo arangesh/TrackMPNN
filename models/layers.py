@@ -38,19 +38,19 @@ class FactorGraphGRU(nn.Module):
 
         # node_support: concat(h_n1, h_n2)
         if self.msg_type == 'concat':
-            node_support = torch.cat((torch.spmm(((node_adj - I_node) > 0).float(), h), 
-                torch.spmm(((node_adj - I_node) < 0).float(), h)), dim=1)
+            node_support = torch.cat((torch.mm(((node_adj - I_node) > 0).float(), h), 
+                torch.mm(((node_adj - I_node) < 0).float(), h)), dim=1)
         else:
-            node_support = torch.spmm(node_adj - I_node, h)
+            node_support = torch.mm(node_adj - I_node, h)
         # node_output: GRU(h_e(t-1), concat(h_n1, h_n2))
         edge_output = self.edge_gru(node_support, h)
 
         # edge_support: sum(h_ei)
-        edge_support = torch.spmm(edge_adj - I_edge, h)
+        edge_support = torch.mm(edge_adj - I_edge, h)
         # edge_output: GRU(h_n(t-1), sum(h_ei))
         node_output = self.node_gru(edge_support, h)
 
-        return torch.spmm(I_edge, edge_output) + torch.spmm(I_node, node_output)
+        return torch.mm(I_edge, edge_output) + torch.mm(I_node, node_output)
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' \
