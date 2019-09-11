@@ -31,8 +31,8 @@ class TrackMPNN(nn.Module):
         self.output_activation = nn.Sigmoid()
 
     def forward(self, x, h_in, node_adj, edge_adj):
-        I_node = torch.diag(torch.diag(node_adj)) # (N', N')
-        I_edge = torch.diag(torch.diag(edge_adj)) # (N', N')
+        I_node = torch.diag(torch.diag(node_adj.to_dense())).to_sparse() # (N', N')
+        I_edge = torch.diag(torch.diag(edge_adj.to_dense())).to_sparse() # (N', N')
 
         if x.size()[0] > 0: 
             conv_hull =  x[:, -10:] # (N'-N, 10)
@@ -48,7 +48,7 @@ class TrackMPNN(nn.Module):
                 conv_hull_feat, _, _ = self.pointnet(conv_hull) # (N'-N, 64)
                 x = torch.cat((x[:, :-10], conv_hull_feat), dim=1) # (N'-N, F-10+64)
 
-            h_update = torch.mm(I_node[-x.size()[0]:, -x.size()[0]:], self.input_transform(x)) # (N'-N, 64)
+            h_update = torch.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), self.input_transform(x)) # (N'-N, 64)
             if h_in is None: # (N, 64)
                 h = h_update # (N', 64)
             else:
