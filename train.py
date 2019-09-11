@@ -17,9 +17,10 @@ from utils.training_options import args
 from models.loss import FocalLoss
 
 
-kwargs = {'batch_size': 1, 'shuffle': True, 'num_workers': 1}
-train_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'train', args.timesteps), **kwargs)
-val_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'val', args.timesteps), **kwargs)
+kwargs_train = {'batch_size': 1, 'shuffle': True, 'num_workers': 1}
+train_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'train', args.timesteps), **kwargs_train)
+kwargs_val = {'batch_size': 1, 'shuffle': False, 'num_workers': 1}
+val_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'val', args.timesteps), **kwargs_val)
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
