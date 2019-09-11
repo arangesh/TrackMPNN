@@ -396,7 +396,7 @@ def prune_graph(states, node_adj, labels, scores, y_pred, t_st, t_ed, threshold=
     return y_pred, states, node_adj, labels, scores
 
 
-def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, use_hungraian=True, cuda=True):
+def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, retain_window, use_hungraian=True, cuda=True):
     """
     This is a function for decoding and finalizing tracks for early parts of the graph,
     and removing said parts from the graph for all future operations.
@@ -413,6 +413,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, use_h
                    id of the current node, and the detection id of next associated node
     y_out [NUM_DETS, 2]: Array of past tracks where each row is [ts, track_id]
     t_upto [scalar]: Timestep upto which tracks are to be decoded and then removed from the graph
+    retain_window [scalar]: Timesteps before t_upto after which detections classified as TP are to be retained for association
 
     Returns: (Typically N' < N)
     y_pred [N', 3]: Updated y_pred
@@ -507,7 +508,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, use_h
         if y_pred[idx, 0] == -1: # if it is an edge node
             continue
         else: # if it is a detection node
-            if y_pred[idx, 2] == -1 and scores[idx, 1] >= 0.5: # if TP and unassociated
+            if (y_pred[idx, 2] == -1) and (scores[idx, 1] >= 0.5) and (y_pred[idx, 0] >= t_upto - retain_window): # if TP and unassociated
                 retain_ids = np.append(retain_ids, idx) # store id to retain this node
             else:
                 # find and remove all edges connected to detection nodes after and at t_upto
