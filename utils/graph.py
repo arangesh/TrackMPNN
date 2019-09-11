@@ -188,7 +188,7 @@ def initialize_graph(X, y, cuda=True):
         elif idx.size()[0] > 1:
             assert False, "More than one detection from same timestep assinged to same track!"
 
-    return y_pred, feats, node_adj, edge_adj, labels, t1+1, tN+1
+    return y_pred, feats, node_adj.to_sparse(), edge_adj.to_sparse(), labels, t1+1, tN+1
 
 
 def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, mode='test', cuda=True):
@@ -218,7 +218,7 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
     assert (X.size()[1] == y.size()[1]), "Input dimension mismatch!"
 
     # move everything to CPU
-    node_adj = node_adj.detach().cpu().numpy().astype('float32')
+    node_adj = node_adj.detach().cpu().to_dense().numpy().astype('float32')
     if labels is not None:
         labels = labels.detach().cpu().numpy().astype('int64')
     scores = scores.detach().cpu().numpy().astype('float32')
@@ -305,17 +305,17 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
             node_adj[num_past+i*num_dets_t:num_past+(i+1)*num_dets_t, ids_active_pred[i]] = 1
         for i in range(num_dets_t):
             node_adj[num_past+i:num_past+num_dets_active*num_dets_t:num_dets_t, num_past+num_dets_active*num_dets_t+i] = -1
-    node_adj = torch.from_numpy(node_adj)
+    node_adj = torch.from_numpy(node_adj).to_sparse()
     if cuda:
         node_adj = node_adj.cuda()
-    edge_adj = torch.t(node_adj) # tranpose node_adj to get edge_adj
+    edge_adj = node_adj.transpose(1, 0) # tranpose node_adj to get edge_adj
     # retain node and edge informations
-    I_edge = torch.diag((y_pred[:, 0] == -1).float())
+    I_edge = torch.diag((y_pred[:, 0] == -1).float()).to_sparse()
     if cuda:
         I_edge = I_edge.cuda()
-        I_node = torch.eye(y_pred.size()[0]).cuda() - I_edge
+        I_node = torch.eye(y_pred.size()[0]).to_sparse().cuda() - I_edge
     else:
-        I_node = torch.eye(y_pred.size()[0]) - I_edge
+        I_node = torch.eye(y_pred.size()[0]).to_sparse() - I_edge
     node_adj = node_adj + I_node
     edge_adj = edge_adj + I_edge
 
@@ -385,8 +385,10 @@ def prune_graph(states, node_adj, labels, scores, y_pred, t_st, t_ed, threshold=
 
     y_pred   = y_pred[idx, :]
     states    = states[idx, :]
+    node_adj = node_adj.to_dense()
     node_adj = node_adj[idx, :]
     node_adj = node_adj[:, idx]
+    node_adj = node_adj.to_sparse()
     if labels is not None:
         labels = labels[idx]
     scores   = scores[idx, :]
@@ -422,7 +424,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, use_h
     """
     # move everything to CPU
     states = states.detach().cpu().numpy().astype('float32')
-    node_adj = node_adj.detach().cpu().numpy().astype('float32')
+    node_adj = node_adj.detach().cpu().to_dense().numpy().astype('float32')
     if labels is not None:
         labels = labels.detach().cpu().numpy().astype('int64')
     scores = scores.detach().cpu().numpy().astype('float32')
@@ -529,15 +531,15 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, use_h
     y_pred = torch.from_numpy(y_pred)
     if cuda:
         y_pred = y_pred.cuda()
-    node_adj = torch.from_numpy(node_adj)
+    node_adj = torch.from_numpy(node_adj).to_sparse()
     if cuda:
         node_adj = node_adj.cuda()
-    I_edge = torch.diag((y_pred[:, 0] == -1).float())
+    I_edge = torch.diag((y_pred[:, 0] == -1).float()).to_sparse()
     if cuda:
         I_edge = I_edge.cuda()
-        I_node = torch.eye(y_pred.size()[0]).cuda() - I_edge
+        I_node = torch.eye(y_pred.size()[0]).to_sparse().cuda() - I_edge
     else:
-        I_node = torch.eye(y_pred.size()[0]) - I_edge
+        I_node = torch.eye(y_pred.size()[0]).to_sparse() - I_edge
     node_adj = node_adj + I_node
     labels = torch.from_numpy(labels)
     if cuda:
