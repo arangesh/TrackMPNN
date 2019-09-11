@@ -48,7 +48,7 @@ class TrackMPNN(nn.Module):
                 conv_hull_feat, _, _ = self.pointnet(conv_hull) # (N'-N, 64)
                 x = torch.cat((x[:, :-10], conv_hull_feat), dim=1) # (N'-N, F-10+64)
 
-            h_update = torch.spmm(I_node[-x.size()[0]:, -x.size()[0]:], self.input_transform(x)) # (N'-N, 64)
+            h_update = torch.mm(I_node[-x.size()[0]:, -x.size()[0]:], self.input_transform(x)) # (N'-N, 64)
             if h_in is None: # (N, 64)
                 h = h_update # (N', 64)
             else:
@@ -57,6 +57,6 @@ class TrackMPNN(nn.Module):
             h = h_in
 
         h_out = self.factor_gru1(h, node_adj, edge_adj) # (N', 64)
-        y = torch.spmm(I_node, self.output_transform_node(h_out)) + torch.spmm(I_edge, self.output_transform_edge(h_out)) # (N', 1)
+        y = torch.mm(I_node, self.output_transform_node(h_out)) + torch.mm(I_edge, self.output_transform_edge(h_out)) # (N', 1)
 
         return self.output_activation(y), h_out
