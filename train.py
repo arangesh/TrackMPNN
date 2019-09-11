@@ -193,6 +193,8 @@ def val(model, epoch):
 
     if len(accs) > 0:
         mota = calc_mot_metrics(accs)['mota']
+    else:
+        mota = -1
 
     val_f1 = statistics.mean(epoch_f1)
     val_mota = 100.0 * mota
