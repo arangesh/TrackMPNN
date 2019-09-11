@@ -421,6 +421,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, use_h
     scores [N', 2]: Updated scores
     """
     # move everything to CPU
+    states = states.detach().cpu().numpy().astype('float32')
     node_adj = node_adj.detach().cpu().numpy().astype('float32')
     if labels is not None:
         labels = labels.detach().cpu().numpy().astype('int64')
@@ -522,6 +523,9 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, use_h
     y_pred = np.delete(y_pred, del_ids, 0)
 
     # take everything back to GPU
+    states = torch.from_numpy(states)
+    if cuda:
+        states = states.cuda()
     y_pred = torch.from_numpy(y_pred)
     if cuda:
         y_pred = y_pred.cuda()
