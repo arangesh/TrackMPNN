@@ -242,17 +242,23 @@ if __name__ == '__main__':
 
     for i in range(1, args.epochs + 1):
         model, avg_loss, avg_f1 = train(model, i)
+        train_loss.append(avg_loss)
         train_f1.append(avg_f1)
 
         # plot the loss
-        train_loss.append(avg_loss)
         ax1.plot(train_loss, 'k')
         fig1.savefig(os.path.join(args.output_dir, "train_loss.jpg"))
+
+        # clear GPU cahce and free up memory
+        torch.cuda.empty_cache()
 
         # plot the train and val F1 scores and MOTAs
         f1, mota = val(model, i)
         val_f1.append(f1)
         val_mota.append(mota)
+
+        # clear GPU cahce and free up memory
+        torch.cuda.empty_cache()
 
         ax2.plot(train_f1, 'g', label='Train F1 score')
         ax2.plot(val_f1, 'b', label='Validation F1 score')
