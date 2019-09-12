@@ -249,7 +249,7 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
                 y_pred[i, 2] = y_pred[i, 1] # self assignment so that it remains inactive
     else: # during inference, make use of previous mdoel predictions to update graph
         if use_hungraian:
-            for t_match in range(y_pred[0, 0], y_pred[-1, 0]):
+            for t_match in range(y_pred[0, 0], y_pred[-1, 0]+1):
                 y_pred = hungarian(node_adj, scores, y_pred, t_match, threshold=0.5)
         else:
             for i in range(y_pred.shape[0]):
@@ -438,7 +438,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, retai
     # y_pred_t-1 <-- update(scores_t-1)
     y_pred[:, 2] = -1
     if use_hungraian:
-        for t_match in range(y_pred[0, 0], y_pred[-1, 0]):
+        for t_match in range(y_pred[0, 0], y_pred[-1, 0]+1):
             y_pred = hungarian(node_adj, scores, y_pred, t_match, threshold=0.5)
     else:
         for i in range(y_pred.shape[0]):
