@@ -3,10 +3,13 @@ import os
 
 def get_tracking_data(dataset_path, split, timesteps):
     seqs = sorted(os.listdir(dataset_path))
+    # seqs 13, 16 and 17 do not have any cars, so ignore them!
     if split == 'train':
-        seqs = seqs[:14] + seqs[16:]
+        seqs = seqs[0:13] + seqs[18:]
+        print(seqs)
     elif split == 'val':
-        seqs = [seqs[14], seqs[15]]
+        seqs = seqs[14:16]
+        print(seqs)
     elif split == 'trainval':
         pass
     else:
