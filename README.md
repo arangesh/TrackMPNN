@@ -20,7 +20,7 @@ pipenv install https://download.pytorch.org/whl/cu100/torch-1.2.0-cp36-cp36m-man
 Note that this repository additionally uses code from [PointNet.pytorch](https://github.com/fxia22/pointnet.pytorch) and [Graph Convolutional Networks in PyTorch](https://github.com/tkipf/pygcn).
 
 ## Dataset
-1) Download the detection features for the train and test split on the KITTI-MOTS dataset using [this link](https://drive.google.com/open?id=18hypBYy0pvFPUspnmZV2t8sSuZiTm3fy)
+1) Download the detection features for the train and test split on the KITTI-MOTS dataset using [this link](https://drive.google.com/open?id=1p8Xdso7jzpM6CLLUHa3TQ4nMOZqVjE7P)
 2) Unzip the data
 
 ## Training
