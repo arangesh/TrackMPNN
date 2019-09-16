@@ -509,7 +509,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, retai
         if y_pred[idx, 0] == -1: # if it is an edge node
             continue
         else: # if it is a detection node
-            if (y_pred[idx, 2] == -1) and (scores[idx, 1] >= 0.5) and (y_pred[idx, 0] >= t_upto - retain_window): # if TP and unassociated
+            if (y_pred[idx, 2] == -1) and (scores[idx, 1] >= 0.5) and (y_pred[idx, 0] >= t_upto - retain_window): # if TP and unassociated and within retain window
                 retain_ids = np.append(retain_ids, idx) # store id to retain this node
             else:
                 # find and remove all edges connected to detection nodes after and at t_upto
