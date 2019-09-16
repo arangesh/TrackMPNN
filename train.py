@@ -49,7 +49,7 @@ def train(model, epoch):
         optimizer.zero_grad()
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X, y, cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X, y, mode='train', cuda=args.cuda)
         if y_pred is None:
             continue
         scores, states = model(feats, None, node_adj, edge_adj)
@@ -138,7 +138,7 @@ def val(model, epoch):
         y_out[:, 1] = -1
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X, y, cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X, y, mode='test', cuda=args.cuda)
         if y_pred is None:
             continue
         # compute the classification scores
