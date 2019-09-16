@@ -95,7 +95,7 @@ def hungarian(node_adj, scores, y_pred, t, threshold=0.5):
     return y_pred
 
 
-def initialize_graph(X, y, cuda=True):
+def initialize_graph(X, y, mode='test', cuda=True):
     """
     This is a function for initializing the graph on which to perform
     message passing operations.
@@ -128,7 +128,7 @@ def initialize_graph(X, y, cuda=True):
             t1 = t
             break
     t0, t1, tN = int(t0.item()), int(t1.item()), int(tN.item())
-    if t0 == t1:
+    if (t0 == t1) or ((y[0, :, 1] == -1).all() and mode == 'train'):
         return None, None, None, None, None, None, None
 
     ids_t0 = torch.nonzero(y[0, :, 0] == t0)[:, 0]
