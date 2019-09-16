@@ -273,7 +273,8 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
     num_past = y_pred.shape[0]
     if mode == 'train':
         # find true positive detections that are not yet associated, and make them available for association at time t
-        ids_active_pred = np.where(np.logical_and(np.logical_and(y_pred[:, 0] != -1, y_pred[:, 2] == -1), labels == 1))[0]
+        t_prev = np.amax(y_pred[y_pred[:, 0] < t, 0])
+        ids_active_pred = np.where(np.logical_or(np.logical_and(y_pred[:, 0] != -1, y_pred[:, 2] == -1), y_pred[:, 0] == t_prev))[0]
     else:
         # find true positive detections that are not yet associated, and make them available for association at time t
         ids_active_pred = np.where(np.logical_and(np.logical_and(y_pred[:, 0] != -1, y_pred[:, 2] == -1), scores[:, 1] >= 0.5))[0]
