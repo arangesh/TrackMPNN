@@ -80,7 +80,7 @@ def hungarian(node_adj, scores, y_pred, t, threshold=0.5):
             if edge_id.size == 0:
                 continue
             elif edge_id.size == 1:
-                C[i, j] = scores[edge_id, 0] # use first entry because we need a cost value
+                C[i, j] = scores[edge_id.item(), 0] # use first entry because we need a cost value
             else:
                 assert False, "Two detection nodes connected through more than one edge!"
 
@@ -235,14 +235,14 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
         for i in range(y_pred.shape[0]):
             if y_pred[i, 0] < 0: # if edge node, continue
                 continue
-            if labels[i]: # if detection is a true positive
+            if labels[i] == 1: # if detection is a true positive
                 ids = np.where(node_adj[i+1:, i])[0]+i+1 # find edge nodes it is connected to
                 idx = np.where(labels[ids])[0] # find edges with +ve label
                 idx = ids[idx] # actual indices of all +ve edges
                 if idx.size == 0: # if no positive association exists
                     continue
                 elif idx.size == 1: # if positive association exists
-                    y_pred[i, 2] = y_pred[np.where(node_adj[idx, :])[0][-1], 1]
+                    y_pred[i, 2] = y_pred[np.where(node_adj[idx.item(), :])[0][-1], 1]
                 else:
                     assert False, "More than one GT edge from same node!"
             else: # if detection is false positive
