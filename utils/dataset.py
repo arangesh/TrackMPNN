@@ -52,8 +52,8 @@ def store_results_kitti(y_out, X, output_path):
             htracks = y_out[hids, 1]
             htracks = htracks.astype('int64')
 
-            scores = X[hids, 0]
-            bboxs = X[hids, 1:5]*np.array([1242, 375, 1242, 375]) + np.array([1242, 375, 1242, 375])/2
+            scores = X[hids, 0] * 0.2042707115 + 0.919026958912
+            bboxs = X[hids, 1:5] * np.array([1242, 375, 1242, 375]) + np.array([1242, 375, 1242, 375]) / 2
 
             for i in range(scores.size):
                 f.write("%d %d Car -1 -1 -10 %.2f %.2f %.2f %.2f -1 -1 -1 -1000 -1000 -1000 -10 %.2f\n" % (t, htracks[i], bboxs[i, 0], bboxs[i, 1], bboxs[i, 2], bboxs[i, 3], scores[i]))
