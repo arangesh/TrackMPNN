@@ -9,7 +9,7 @@ def get_tracking_data(dataset_path, split, timesteps):
         seqs = seqs[:14] + seqs[16:]
         print(seqs)
     elif split == 'val':
-        seqs = seqs[14:16]
+        seqs = seqs[14:16] #[seqs[0], seqs[15]]
         print(seqs)
     else:
         pass
@@ -51,6 +51,7 @@ def store_results_kitti(y_out, X, output_path):
             hids = np.where(np.logical_and(y_out[:, 0] == t, y_out[:, 1] != -1))[0]
             htracks = y_out[hids, 1]
             htracks = htracks.astype('int64')
+            assert (htracks.size == np.unique(htracks).size), "Same track ID assigned to two detections from same timestep!"
 
             scores = X[hids, 0] * 0.2042707115 + 0.919026958912
             bboxs = X[hids, 1:5] * np.array([1242, 375, 1242, 375]) + np.array([1242, 375, 1242, 375]) / 2
