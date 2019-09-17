@@ -16,7 +16,10 @@ class KittiMOTSDataset(data.Dataset):
 
         self.split = split
         self.timesteps = timesteps
-        self.dataset_path = os.path.join(dataset_root_path, 'training', 'gcn_features')
+        if split == 'test':
+            self.dataset_path = os.path.join(dataset_root_path, 'testing', 'gcn_features')
+        else:
+            self.dataset_path = os.path.join(dataset_root_path, 'training', 'gcn_features')
 
         self.dataset = get_tracking_data(self.dataset_path, self.split, self.timesteps)
         with open(os.path.join(dataset_root_path, 'gcn_features_mean.json')) as json_file:
@@ -48,8 +51,8 @@ class KittiMOTSDataset(data.Dataset):
         for fr in range(input_info[1], input_info[2]):
             with open(os.path.join(self.dataset_path, input_info[0], '%.6d.json' % (fr,))) as json_file:
                 data = json.load(json_file)
-                for d in range(len(data['track_id'])):
-                    if not data['track_id'][d]:
+                for d in range(len(data['score'])):
+                    if not data['score'][d]:
                         continue
                     # each feature vector for a detection in the sequence contains:
                     # [2d_bbox_score (1), 2d_bbox_coords (4), keypoint_appearance_feats (64), 3d_convex_hull_coords (10)]
@@ -60,7 +63,10 @@ class KittiMOTSDataset(data.Dataset):
                     features.append(datum)
                     # target labels for each detection in the sequence contains:
                     # [frame_no (1), track_id (1)]
-                    labels.append([fr, data['track_id'][d]])
+                    if self.split == 'test':
+                        labels.append([fr, -1])
+                    else:
+                        labels.append([fr, data['track_id'][d]])
 
         if len(features) != 0 and len(labels) != 0:
             features = (np.array(features, dtype='float32') - self.mean) / self.std # normalize/standardize features
