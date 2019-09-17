@@ -9,7 +9,7 @@ def get_tracking_data(dataset_path, split, timesteps):
         seqs = seqs[:14] + seqs[16:]
         print(seqs)
     elif split == 'val':
-        seqs = seqs[14:16] #[seqs[0], seqs[15]]
+        seqs = seqs[14:16]
         print(seqs)
     else:
         pass
