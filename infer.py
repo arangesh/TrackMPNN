@@ -57,6 +57,10 @@ def infer(model):
                 scores[idx_node, 0] = 0
                 scores[idx_node, 1] = 1
 
+            # if no new detections are added, don't remove detections either
+            if feats.size()[0] == 0:
+                continue
+
             if t == t_end - 1:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 10, 
                     use_hungraian=args.hungarian, cuda=args.cuda)
@@ -65,7 +69,7 @@ def infer(model):
                     t - args.timesteps + 2, 10, use_hungraian=args.hungarian, cuda=args.cuda)
             print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t - args.timesteps + 1), t_end))
         print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, t_end, t_end))
-        
+
         # store results in KITTI format
         store_results_kitti(y_out, X, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
         print('Done with sequence {} out {}...\n'.format(b_idx + 1, len(infer_loader.dataset)))
