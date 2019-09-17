@@ -6,10 +6,10 @@ def get_tracking_data(dataset_path, split, timesteps):
     seqs = sorted(os.listdir(dataset_path))
     # seqs 13, 16 and 17 have very few or no cars at all
     if split == 'train':
-        seqs = seqs[0:14] + seqs[16:]
+        seqs = seqs[:14] + seqs[16:]
         print(seqs)
     elif split == 'val':
-        seqs = seqs[14:16]
+        seqs = seqs[14:16] #[seqs[0], seqs[15]]
         print(seqs)
     else:
         pass
@@ -52,7 +52,7 @@ def store_results_kitti(y_out, X, output_path):
             htracks = y_out[hids, 1]
             htracks = htracks.astype('int64')
 
-            scores = X[hids, 0].astype('int64')
+            scores = X[hids, 0]
             bboxs = X[hids, 1:5]*np.array([1242, 375, 1242, 375]) + np.array([1242, 375, 1242, 375])/2
 
             for i in range(scores.size):
