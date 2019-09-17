@@ -46,7 +46,6 @@ class TrackMPNN(nn.Module):
             x = self.input_transform(x) # (N'-N, nhid)
 
             h_update = torch.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhid)
-            print(h_update)
             if h_in is None: # (N, nhid)
                 h = h_update # (N', nhid)
             else:
