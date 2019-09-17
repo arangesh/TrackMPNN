@@ -176,6 +176,11 @@ def val(model, epoch):
             # compute the f1 score
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+
+            # if no new detections are added, don't remove detections either
+            if feats.size()[0] == 0:
+                continue
+
             if t == t_end - 1:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 10, 
                     use_hungraian=args.hungarian, cuda=args.cuda)
