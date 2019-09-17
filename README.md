@@ -39,4 +39,4 @@ python infer.py --snapshot=/path/to/snapshot --dataset-root-path=/path/to/kitti-
 exit # exit virtual environment
 ```
 
-Config files, logs, results and snapshots from running the above script will be stored in the `TrackMPNN/experiments` folder by default.
+Config files, logs, results and snapshots from running the above scripts will be stored in the `TrackMPNN/experiments` folder by default.
