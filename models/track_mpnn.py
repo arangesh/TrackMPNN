@@ -41,22 +41,12 @@ class TrackMPNN(nn.Module):
             else:
                 conv_hull = torch.cat((conv_hull.view(-1, 2, 5), torch.zeros(conv_hull.size()[0], 1, 5)), dim=1) # (N'-N, 3, 5)
 
-            # batchnorm does not work if N=1 (workaround)
-            if conv_hull.size()[0] == 1:
-                conv_hull_feat, _, _ = self.pointnet(torch.cat((conv_hull, conv_hull), 0)) # (2, 64)
-                x = torch.cat((x[:, :-10], conv_hull_feat[:1, :]), dim=1) # (1, F-10+64)
-            else:
-                conv_hull_feat, _, _ = self.pointnet(conv_hull) # (N'-N, 64)
-                x = torch.cat((x[:, :-10], conv_hull_feat), dim=1) # (N'-N, F-10+64)
-
-            # batchnorm does not work if N=1 (workaround)
-            if x.size()[0] == 1:
-                x = self.input_transform(torch.cat((x, x), 0)) # (2, nhid)
-                x = x[:1, :] # (1, nhid)
-            else:
-                x = self.input_transform(x) # (N'-N, nhid)
+            conv_hull_feat, _, _ = self.pointnet(conv_hull) # (N'-N, 64)
+            x = torch.cat((x[:, :-10], conv_hull_feat), dim=1) # (N'-N, F-10+64)
+            x = self.input_transform(x) # (N'-N, nhid)
 
             h_update = torch.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhid)
+            print(h_update)
             if h_in is None: # (N, nhid)
                 h = h_update # (N', nhid)
             else:
