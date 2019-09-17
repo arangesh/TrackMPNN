@@ -413,7 +413,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, retai
                    for each node i.e. ith row entry indicates the timestep of current node, detection
                    id of the current node, and the detection id of next associated node
     y_out [NUM_DETS, 2]: Array of past tracks where each row is [ts, track_id]
-    t_upto [scalar]: Timestep upto which tracks are to be decoded and then removed from the graph
+    t_upto [scalar]: Timestep upto which (not including) tracks are to be decoded and then removed from the graph
     retain_window [scalar]: Timesteps before t_upto after which detections classified as TP are to be retained for association
 
     Returns: (Typically N' < N)
@@ -497,7 +497,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, retai
             node_id = np.where(y_pred[:, 1] == det_id)[0]
 
     # delete parts of graph upto timestep t_upto
-    max_id = np.where(np.logical_and(y_pred[:, 0] < t_upto, y_pred[:, 0] != -1))[0]
+    max_id = np.where(np.logical_and(y_pred[:, 0] < t_upto, y_pred[:, 0] != -1))[0] + 1
     if max_id.size == 0:
         max_id = 0
     else:
@@ -514,7 +514,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, retai
             else:
                 # find and remove all edges connected to detection nodes after and at t_upto
                 idx_edges = np.where(node_adj[:, idx])[0]
-                idx_edges = idx_edges[idx_edges > max_id]
+                idx_edges = idx_edges[idx_edges >= max_id]
                 del_ids = np.concatenate((del_ids, idx_edges), 0)
     del_ids = np.delete(del_ids, retain_ids, 0) # remove ids to be retained from those to be deleted
 
