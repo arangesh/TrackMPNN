@@ -11,7 +11,7 @@ from networkx.algorithms import bipartite
 from IPython import embed
 
 
-def generate_track_association(y_in, y_out, range_node_name):
+def generate_track_association(y_in, y_out, node_name_container):
     '''
     :param y_in:  An np array of size [N, 2] where N is the no. of input detections
     :param y_out: An np array of size [N, 2] , same as the length of y_in
@@ -33,13 +33,13 @@ def generate_track_association(y_in, y_out, range_node_name):
         # if y_in's track ID's at indices det_idx matches, their length of set() shoulb be 1
         if (len(set(y_in[det_idx][:, 1])) == 1):
             # seq_edges = zip(list(det_idx), list(det_idx[1:])) #orig
-            seq_edges = zip(list(range_node_name[det_idx]), list(range_node_name[det_idx[1:]]))
+            seq_edges = zip(list(node_name_container[det_idx]), list(node_name_container[det_idx[1:]]))
             track_keeping.append(seq_edges)
 
     return track_keeping
 
 
-def generate_dynamic_graph(y_in, y_out, color_label_dict, range_node_name):
+def generate_dynamic_graph(y_in, y_out, color_label_dict, node_name_container):
     """
     This function dynamically generates bipartite graphs when an np.array of input and output detections are given
     :y_in:  An np array of size [N, 2] where N is the no. of  detections
@@ -61,7 +61,7 @@ def generate_dynamic_graph(y_in, y_out, color_label_dict, range_node_name):
 
     counter = 0  # Just to maintain sanity
     track_keeping = generate_track_association(y_in, y_out,
-                                               range_node_name)  # Generate association for maintaining the track
+                                               node_name_container)  # Generate association for maintaining the track
     label_list = []  # Meh! TODO Optimize the color coding code. "color coding code" - That's an alliteration
     # Choose the max num of tracks
     num_tracks = np.amax(y_in[:, 1]) + 1
@@ -80,19 +80,17 @@ def generate_dynamic_graph(y_in, y_out, color_label_dict, range_node_name):
     for i in unique_frames:
         # find indices that belong to the same frame
         idx = np.where(y_out[:, 0] == i)
-        print()
-        print("For frame no: ", i, "   ,Idx nodes are : ", idx)
+        print("\nFor frame no: ", i, "   ,Idx nodes are : ", idx)
+
         # Add nodes to bipartite set
         curr_nodes = np.asarray(idx[0])
-        # curr_nodes = range_node_name[idx[0]]
-        # G.add_nodes_from(list(curr_nodes), bipartite=i) #orig
-        G.add_nodes_from(list(range_node_name[idx[0]]), bipartite=i)
+        G.add_nodes_from(list(node_name_container[idx[0]]), bipartite=i)
         G_frame_label.add_node(i, bipartite=i)
 
         # Update the position of the bipartite set
         counter += 1
-        #Find orig
-        pos.update((range_node_name[node], (counter, index)) for index, node in enumerate(set(curr_nodes.flatten())))
+        # Find orig
+        pos.update((node_name_container[node], (counter, index)) for index, node in enumerate(set(curr_nodes.flatten())))
         pos_frame_label.update((i, (counter, index - 0.3)) for index, node in enumerate(set(np.array((i, i)))))  # TODO
 
     # Update the node labels
@@ -114,16 +112,11 @@ def generate_dynamic_graph(y_in, y_out, color_label_dict, range_node_name):
             print(n1, " connecting to ", n2)
             G.add_edge(n1, n2)  # Connect the edges
 
-            # print("Inside edge_list")
-            # embed()
-
             # Associate the nodes with the same color
             n1_idx = np.where(label_array == n1)[0][0]
             n2_idx = np.where(label_array == n2)[0][0]
-            # embed()
-            # track_color = color_label[y_in[n1][1]]  # Color
-            # track_color = color_label_dict[y_in[n1][1]]  # Orig
-            color_index = y_in[np.where(range_node_name == n1)[0]][0][1]
+
+            color_index = y_in[np.where(node_name_container == n1)[0]][0][1]
             track_color = color_label_dict[color_index]  # Color
             color_label_arr[n1_idx] = track_color
             color_label_arr[n2_idx] = track_color
@@ -131,7 +124,6 @@ def generate_dynamic_graph(y_in, y_out, color_label_dict, range_node_name):
     # Draw and Visualize the graph
     f = plt.figure(figsize=(15, 10))
     ax = f.add_subplot(111)
-    # ax.set_ylabel("time ----->") #Not working
     plt.title('Time --------------------------->', loc='left', ha='center', va='bottom', x=0.5, y=0, fontsize='medium',
               fontfamily='cursive', fontweight='light', color='B')
     plt.xlabel('categories')
