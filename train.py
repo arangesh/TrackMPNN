@@ -49,7 +49,7 @@ def train(model, epoch):
         optimizer.zero_grad()
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X, y, mode='train', cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X, y, mode='train', cuda=args.cuda)
         if y_pred is None:
             continue
         scores, states = model(feats, None, node_adj, edge_adj)
@@ -71,7 +71,7 @@ def train(model, epoch):
         epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
         # loop through all frames
-        for t in range(t_init, t_end):
+        for t in range(t_st, t_end):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X, y, t, 
                 use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
@@ -138,7 +138,7 @@ def val(model, epoch):
         y_out[:, 1] = -1
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X, y, mode='test', cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X, y, mode='test', cuda=args.cuda)
         if y_pred is None:
             continue
         # compute the classification scores
@@ -158,7 +158,7 @@ def val(model, epoch):
         epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
         # loop through all frames
-        for t in range(t_init, t_end):
+        for t in range(t_st, t_end):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X, y, t, 
                 use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
