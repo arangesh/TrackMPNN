@@ -8,6 +8,7 @@ from random import shuffle
 from random import randrange
 import matplotlib.pyplot as plt
 from networkx.algorithms import bipartite
+from IPython import embed
 
 
 def generate_track_association(y_in, y_out):
@@ -37,7 +38,7 @@ def generate_track_association(y_in, y_out):
     return track_keeping
 
 
-def generate_dynamic_graph(y_in, y_out):
+def generate_dynamic_graph(y_in, y_out, color_label_dict):
     """
     This function dynamically generates bipartite graphs when an np.array of input and output detections are given
     :y_in:  An np array of size [N, 2] where N is the no. of  detections
@@ -70,6 +71,11 @@ def generate_dynamic_graph(y_in, y_out):
     shuffle(color_label)
     color_label_arr = np.ones((y_out.shape[0], 4))
 
+    # Generating a dict for retracing colors throughouot
+    for i in range(len(color_label)):
+        if i not in color_label_dict:
+            color_label_dict[i] = color_label[i]
+
     for i in unique_frames:
         # find indices that belong to the same frame
         idx = np.where(y_out[:, 0] == i)
@@ -101,6 +107,7 @@ def generate_dynamic_graph(y_in, y_out):
     # Update the color map
     for edge_list in track_keeping:
         # track_color = color_map[randrange(len(color_map))]  # Color
+        # embed()
         for n1, n2 in edge_list:
             print(n1, " connecting to ", n2)
             G.add_edge(n1, n2)  # Connect the edges
@@ -109,7 +116,8 @@ def generate_dynamic_graph(y_in, y_out):
             n1_idx = np.where(label_array == n1)[0][0]
             n2_idx = np.where(label_array == n2)[0][0]
             # embed()
-            track_color = color_label[y_in[n1][1]]  # Color
+            # track_color = color_label[y_in[n1][1]]  # Color
+            track_color = color_label_dict[y_in[n1][1]]  # Color
             color_label_arr[n1_idx] = track_color
             color_label_arr[n2_idx] = track_color
 
@@ -117,7 +125,8 @@ def generate_dynamic_graph(y_in, y_out):
     f = plt.figure(figsize=(15, 10))
     ax = f.add_subplot(111)
     # ax.set_ylabel("time ----->") #Not working
-    plt.title('Time --------------------------->', loc='left', ha='center', va='bottom', x=0.5, y=0, fontsize='medium', fontfamily='cursive', fontweight='light', color='B')
+    plt.title('Time --------------------------->', loc='left', ha='center', va='bottom', x=0.5, y=0, fontsize='medium',
+              fontfamily='cursive', fontweight='light', color='B')
     plt.xlabel('categories')
     plt.ylabel('values')
 
