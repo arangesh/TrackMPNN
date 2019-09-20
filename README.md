@@ -20,7 +20,7 @@ pipenv install https://download.pytorch.org/whl/cu100/torch-1.2.0-cp36-cp36m-man
 Note that this repository additionally uses code from [PointNet.pytorch](https://github.com/fxia22/pointnet.pytorch) and [Graph Convolutional Networks in PyTorch](https://github.com/tkipf/pygcn).
 
 ## Dataset
-1) Download the detection features (from [MOTBeyondPixels](https://github.com/JunaidCS032/MOTBeyondPixels)) for the train and test split on the KITTI-MOTS dataset using [this link](https://drive.google.com/file/d/1xivQ4LC87vlpb4t_0nbkS_gTt81YxNdJ/view?usp=sharing)
+1) Download the detection features (proposed by [MOTBeyondPixels](https://github.com/JunaidCS032/MOTBeyondPixels)) for the train and test split on the KITTI-MOTS dataset using [this link](https://drive.google.com/file/d/1xivQ4LC87vlpb4t_0nbkS_gTt81YxNdJ/view?usp=sharing)
 2) Unzip the data
 
 If you would like to re-generate these features, you can do so by using the scripts in the `utils/matlab` folder as follows:
