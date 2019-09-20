@@ -1,15 +1,10 @@
 # This script contains util functions that help in different visualizations of TrackMPNN codebase
-# Work In Progress. Enjoy your long weekend!
 
 import numpy as np
 import networkx as nx
 import matplotlib
 from random import shuffle
-from random import randrange
 import matplotlib.pyplot as plt
-from networkx.algorithms import bipartite
-from IPython import embed
-
 
 def generate_track_association(y_in, y_out, node_name_container):
     '''
@@ -27,7 +22,6 @@ def generate_track_association(y_in, y_out, node_name_container):
     # Compare and assert the track association of y_out with y_in
     for id in unique_track_IDs:
         det_idx = np.where(y_out[:, 1] == id)[0]
-        # print("For curr_id: ", id, " corrensponding dets det_idx: ", det_idx)
 
         # Find correct track associations and create edges
         # if y_in's track ID's at indices det_idx matches, their length of set() shoulb be 1
@@ -37,6 +31,7 @@ def generate_track_association(y_in, y_out, node_name_container):
             track_keeping.append(seq_edges)
 
     return track_keeping
+
 
 # Update node labels and frame labels
 def update_node_and_frame_labels(G, G_frame_label):
@@ -50,6 +45,7 @@ def update_node_and_frame_labels(G, G_frame_label):
 
     return node_label_dict, frame_label_dict
 
+
 def fill_color_labels(color_label_dict, num_tracks):
     # To color code the associated tracks
     color_label = [list((matplotlib.colors.hsv_to_rgb([x, 1.0, 1.0]))) + [1.0] for x in
@@ -62,6 +58,7 @@ def fill_color_labels(color_label_dict, num_tracks):
             color_label_dict[i] = color_label[i]
 
     return color_label_dict
+
 
 def generate_dynamic_graph(y_in, y_out, color_label_dict, node_name_container):
     """
@@ -79,9 +76,6 @@ def generate_dynamic_graph(y_in, y_out, color_label_dict, node_name_container):
 
     pos = {}  # hold position information of the nodes
     pos_frame_label = {}  # position information for the frame labels
-
-    # node_label_dict = {}  # label the nodes using their array indices
-    # frame_label_dict = {}  # label the frames incrementally
 
     counter = 0  # Just to maintain sanity
     track_keeping = generate_track_association(y_in, y_out,
