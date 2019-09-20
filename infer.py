@@ -26,16 +26,16 @@ def random_seed(seed_value, use_cuda):
 def infer(model):
     model.eval()
 
-    for b_idx, (X, y) in enumerate(infer_loader):
+    for b_idx, (X_seq, y_seq) in enumerate(infer_loader):
         if args.cuda:
-            X, y = X.cuda(), y.cuda()
+            X_seq, y_seq = X_seq.cuda(), y_seq.cuda()
 
         # initaialize output array tracks to -1s
-        y_out = y.squeeze(0).detach().cpu().numpy().astype('int64')
+        y_out = y_seq.squeeze(0).detach().cpu().numpy().astype('int64')
         y_out[:, 1] = -1
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X, y, mode='test', cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X_seq, y_seq, mode='test', cuda=args.cuda)
         
         # compute the classification scores
         scores, states = model(feats, None, node_adj, edge_adj)
@@ -46,9 +46,9 @@ def infer(model):
             scores[idx_node, 1] = 1
 
         # loop through all frames
-        for t in range(t_init, t_end):
+        for t_cur in range(t_init, t_end):
             # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X, y, t, 
+            y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
                 use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
             scores, states = model(feats, states, node_adj, edge_adj)
             scores = torch.cat((1-scores, scores), dim=1)
@@ -61,17 +61,17 @@ def infer(model):
             if feats.size()[0] == 0:
                 continue
 
-            if t == t_end - 1:
+            if t_cur == t_end - 1:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 10, 
                     use_hungraian=args.hungarian, cuda=args.cuda)
             else:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, 
-                    t - args.timesteps + 2, 10, use_hungraian=args.hungarian, cuda=args.cuda)
-            print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t - args.timesteps + 1), t_end))
+                    t_cur - args.timesteps + 2, 10, use_hungraian=args.hungarian, cuda=args.cuda)
+            print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t_cur - args.timesteps + 1), t_end))
         print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, t_end, t_end))
 
         # store results in KITTI format
-        store_results_kitti(y_out, X, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
+        store_results_kitti(y_out, X_seq, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
         print('Done with sequence {} out {}...\n'.format(b_idx + 1, len(infer_loader.dataset)))
 
     return
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeat=1 + 4 + 64 + 10 - 10 + 64, nhid=64)
+    model = TrackMPNN(nfeatures=1 + 4 + 64 + 10 - 10 + 64, nhidden=64)
     model.load_state_dict(torch.load(args.snapshot), strict=False)
     if args.cuda:
         model.cuda()

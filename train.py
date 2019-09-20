@@ -37,19 +37,19 @@ def random_seed(seed_value, use_cuda):
 def train(model, epoch):
     epoch_loss, epoch_f1 = list(), list()
     model.train()
-    for b_idx, (X, y) in enumerate(train_loader):
-        if type(X) == type([]) or type(y) == type([]):
+    for b_idx, (X_seq, y_seq) in enumerate(train_loader):
+        if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
         if args.cuda:
-            X, y = X.cuda(), y.cuda()
+            X_seq, y_seq = X_seq.cuda(), y_seq.cuda()
         # backpropagate gradient through feature matrix
-        X.requires_grad = True
+        X_seq.requires_grad = True
 
         # train the network
         optimizer.zero_grad()
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X, y, mode='train', cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, mode='train', cuda=args.cuda)
         if y_pred is None:
             continue
         scores, states = model(feats, None, node_adj, edge_adj)
@@ -71,9 +71,9 @@ def train(model, epoch):
         epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
         # loop through all frames
-        for t in range(t_st, t_end):
+        for t_cur in range(t_st, t_end):
             # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X, y, t, 
+            y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
                 use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
             scores, states = model(feats, states, node_adj, edge_adj)
             # compute the loss
@@ -127,18 +127,18 @@ def val(model, epoch):
     accs = []
     model.eval()
 
-    for b_idx, (X, y) in enumerate(val_loader):
-        if type(X) == type([]) or type(y) == type([]):
+    for b_idx, (X_seq, y_seq) in enumerate(val_loader):
+        if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
         if args.cuda:
-            X, y = X.cuda(), y.cuda()
+            X_seq, y_seq = X_seq.cuda(), y_seq.cuda()
 
         # initaialize output array tracks to -1s
-        y_out = y.squeeze(0).detach().cpu().numpy().astype('int64')
+        y_out = y_seq.squeeze(0).detach().cpu().numpy().astype('int64')
         y_out[:, 1] = -1
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X, y, mode='test', cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, mode='test', cuda=args.cuda)
         if y_pred is None:
             continue
         # compute the classification scores
@@ -158,9 +158,9 @@ def val(model, epoch):
         epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
         # loop through all frames
-        for t in range(t_st, t_end):
+        for t_cur in range(t_st, t_end):
             # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X, y, t, 
+            y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
                 use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
             scores, states = model(feats, states, node_adj, edge_adj)
             scores = torch.cat((1-scores, scores), dim=1)
@@ -181,16 +181,16 @@ def val(model, epoch):
             if feats.size()[0] == 0:
                 continue
 
-            if t == t_end - 1:
+            if t_cur == t_end - 1:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 10, 
                     use_hungraian=args.hungarian, cuda=args.cuda)
             else:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, 
-                    t - args.timesteps + 2, 10, use_hungraian=args.hungarian, cuda=args.cuda)
-            print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t - args.timesteps + 1), t_end))
+                    t_cur - args.timesteps + 2, 10, use_hungraian=args.hungarian, cuda=args.cuda)
+            print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t_cur - args.timesteps + 1), t_end))
         print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, t_end, t_end))
         # create results accumulator using predictions and GT for evaluation
-        acc = create_mot_accumulator(y_out, X, y)
+        acc = create_mot_accumulator(y_out, X_seq, y_seq)
         if acc is not None:
             accs.append(acc)
 
@@ -223,7 +223,7 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeat=1 + 4 + 64 + 10 - 10 + 64, nhid=args.hidden)
+    model = TrackMPNN(nfeatures=1 + 4 + 64 + 10 - 10 + 64, nhidden=args.hidden)
 
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=False)

@@ -370,7 +370,7 @@ def prune_graph(states, node_adj, labels, scores, y_pred, t_st, t_ed, threshold=
     
     idx = torch.nonzero((y_pred[:, 0] >= t_st) & (y_pred[:, 0] <= t_ed))[:, 0]
     if idx.size()[0] == 0:
-        return y_pred, states, node_adj, scores
+        return y_pred, states, node_adj, labels, scores
     idx_st = idx[0]
     idx_ed = idx[-1]
 
