@@ -35,11 +35,17 @@ def generate_track_association(y_in, y_out, node_name_container):
 
 # Update node labels and frame labels
 def update_node_and_frame_labels(G, G_frame_label):
+
+    #Node label is the label that we see in the renderer
+    #Frame label indicates the frame number a set of nodes belong to(usually in the bottom row of the graph)
     node_label_dict = {}
     frame_label_dict = {}
+
+    #fill up node_labels
     for idx, node in enumerate(G.nodes()):
         node_label_dict[node] = node
 
+    # fill up range labels
     for idx, node in enumerate(G_frame_label.nodes()):
         frame_label_dict[node] = "f_" + str(idx)
 
@@ -54,6 +60,7 @@ def fill_color_labels(color_label_dict, num_tracks):
 
     # Generating a dict for retracing colors throughouot
     for i in range(len(color_label)):
+        #Add only new colors
         if i not in color_label_dict:
             color_label_dict[i] = color_label[i]
 
