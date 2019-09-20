@@ -242,7 +242,8 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
                 if idx.size == 0: # if no positive association exists
                     continue
                 elif idx.size == 1: # if positive association exists
-                    y_pred[i, 2] = y_pred[np.where(node_adj[idx.item(), :])[0][-1], 1]
+                    idx_det = np.where(node_adj[idx.item(), :])[0][-1]
+                    y_pred[i, 2] = y_pred[idx_det, 1]
                 else:
                     assert False, "More than one GT edge from same node!"
             else: # if detection is false positive
@@ -268,7 +269,8 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
 
                         best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
                         # get detection index to which highest scoring edge connects, and associate to it
-                        y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1]
+                        best_idx_det = np.where(node_adj[best_idx, :])[0][-1]
+                        y_pred[i, 2] = y_pred[best_idx_det, 1]
 
     num_past = y_pred.shape[0]
     if mode == 'train':
@@ -368,7 +370,7 @@ def prune_graph(states, node_adj, labels, scores, y_pred, t_st, t_ed, threshold=
     
     idx = torch.nonzero((y_pred[:, 0] >= t_st) & (y_pred[:, 0] <= t_ed))[:, 0]
     if idx.size()[0] == 0:
-        return y_pred, states, node_adj, scores
+        return y_pred, states, node_adj, labels, scores
     idx_st = idx[0]
     idx_ed = idx[-1]
 
@@ -458,7 +460,8 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, retai
 
                     best_idx = idx[np.argmax(scores[idx, 1])] # assign to edge with highest prob in nearest timestep
                     # get detection index to which highest scoring edge connects, and associate to it
-                    y_pred[i, 2] = y_pred[np.where(node_adj[best_idx, :])[0][-1], 1]
+                    best_idx_det = np.where(node_adj[best_idx, :])[0][-1]
+                    y_pred[i, 2] = y_pred[best_idx_det, 1]
 
     # update and decide on (finalize) tracking predictions upto timestep t_upto
     next_track_id = np.amax(y_out[:, 1])+1 # track id for next new track
