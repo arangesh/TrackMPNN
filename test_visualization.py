@@ -7,8 +7,8 @@ from IPython import embed
 
 if __name__ == '__main__':
     # Load from saved np.array
-    y_in = np.loadtxt('Y/y_seq_2.txt', dtype=int)
-    y_out = np.loadtxt('Y/y_out_seq_2.txt', dtype=int)
+    y_in = np.loadtxt('sample_data/y_seq_2.txt', dtype=int)
+    y_out = np.loadtxt('sample_data/y_out_seq_2.txt', dtype=int)
 
     # TODO IDEALLY RESOLUTION COULD BE TIMESTEPS
     resolution = int(len(y_out) / 2)

@@ -38,6 +38,30 @@ def generate_track_association(y_in, y_out, node_name_container):
 
     return track_keeping
 
+# Update node labels and frame labels
+def update_node_and_frame_labels(G, G_frame_label):
+    node_label_dict = {}
+    frame_label_dict = {}
+    for idx, node in enumerate(G.nodes()):
+        node_label_dict[node] = node
+
+    for idx, node in enumerate(G_frame_label.nodes()):
+        frame_label_dict[node] = "f_" + str(idx)
+
+    return node_label_dict, frame_label_dict
+
+def fill_color_labels(color_label_dict, num_tracks):
+    # To color code the associated tracks
+    color_label = [list((matplotlib.colors.hsv_to_rgb([x, 1.0, 1.0]))) + [1.0] for x in
+                   np.arange(0, 1, 1.0 / num_tracks)]
+    shuffle(color_label)
+
+    # Generating a dict for retracing colors throughouot
+    for i in range(len(color_label)):
+        if i not in color_label_dict:
+            color_label_dict[i] = color_label[i]
+
+    return color_label_dict
 
 def generate_dynamic_graph(y_in, y_out, color_label_dict, node_name_container):
     """
@@ -56,8 +80,8 @@ def generate_dynamic_graph(y_in, y_out, color_label_dict, node_name_container):
     pos = {}  # hold position information of the nodes
     pos_frame_label = {}  # position information for the frame labels
 
-    node_label_dict = {}  # label the nodes using their array indices
-    frame_label_dict = {}  # label the frames incrementally
+    # node_label_dict = {}  # label the nodes using their array indices
+    # frame_label_dict = {}  # label the frames incrementally
 
     counter = 0  # Just to maintain sanity
     track_keeping = generate_track_association(y_in, y_out,
@@ -66,16 +90,9 @@ def generate_dynamic_graph(y_in, y_out, color_label_dict, node_name_container):
     # Choose the max num of tracks
     num_tracks = np.amax(y_in[:, 1]) + 1
 
-    # To color code the associated tracks
-    color_label = [list((matplotlib.colors.hsv_to_rgb([x, 1.0, 1.0]))) + [1.0] for x in
-                   np.arange(0, 1, 1.0 / num_tracks)]
-    shuffle(color_label)
+    #Fill in range of colors to color the tracks
+    color_label_dict = fill_color_labels(color_label_dict, num_tracks)
     color_label_arr = np.ones((y_out.shape[0], 4))
-
-    # Generating a dict for retracing colors throughouot
-    for i in range(len(color_label)):
-        if i not in color_label_dict:
-            color_label_dict[i] = color_label[i]
 
     for i in unique_frames:
         # find indices that belong to the same frame
@@ -90,15 +107,12 @@ def generate_dynamic_graph(y_in, y_out, color_label_dict, node_name_container):
         # Update the position of the bipartite set
         counter += 1
         # Find orig
-        pos.update((node_name_container[node], (counter, index)) for index, node in enumerate(set(curr_nodes.flatten())))
-        pos_frame_label.update((i, (counter, index - 0.3)) for index, node in enumerate(set(np.array((i, i)))))  # TODO
+        pos.update(
+            (node_name_container[node], (counter, index)) for index, node in enumerate(set(curr_nodes.flatten())))
+        pos_frame_label.update((i, (counter, index - 0.3)) for index, node in enumerate(set(np.array((i, i)))))
 
     # Update the node labels
-    for idx, node in enumerate(G.nodes()):
-        node_label_dict[node] = node
-
-    for idx, node in enumerate(G_frame_label.nodes()):
-        frame_label_dict[node] = "f_" + str(idx)
+    node_label_dict, frame_label_dict = update_node_and_frame_labels(G, G_frame_label)
 
     # TODO Needs a better solution
     for i in node_label_dict:
