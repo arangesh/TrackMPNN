@@ -194,7 +194,7 @@ def val(model, epoch):
         if acc is not None:
             accs.append(acc)
 
-        print('Done with sequence {} out {}...'.format(b_idx + 1, len(val_loader.dataset)))
+        print('Done with sequence {} of {}...'.format(b_idx + 1, len(val_loader.dataset)))
 
     if len(accs) > 0:
         mota = calc_mot_metrics(accs)['mota']
