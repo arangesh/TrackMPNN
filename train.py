@@ -24,6 +24,8 @@ val_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'val', args.tim
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
+# create file handles
+f_log = open(os.path.join(args.output_dir, "logs.txt"), "w")
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
@@ -101,8 +103,7 @@ def train(model, epoch):
             print('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}'.format(
                 epoch, (b_idx + 1), len(train_loader.dataset),
                 100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
-            with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
-                f.write('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}\n'.format(
+            f_log.write('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}\n'.format(
                 epoch, (b_idx + 1), len(train_loader.dataset),
                 100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
 
@@ -110,12 +111,10 @@ def train(model, epoch):
     avg_loss = statistics.mean(epoch_loss)
     avg_f1 = statistics.mean(epoch_f1)
     print("------------------------\nAverage loss for epoch = {:.2f}".format(avg_loss))
-    with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
-        f.write("------------------------\nAverage loss for epoch = {:.2f}\n".format(avg_loss))
+    f_log.write("------------------------\nAverage loss for epoch = {:.2f}\n".format(avg_loss))
     
     print("Average F1 score for epoch = {:.4f}\n------------------------".format(avg_f1))
-    with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
-        f.write("Average F1 score for epoch = {:.4f}\n".format(avg_f1))
+    f_log.write("Average F1 score for epoch = {:.4f}\n".format(avg_f1))
 
     return model, avg_loss, avg_f1
 
@@ -205,9 +204,8 @@ def val(model, epoch):
     val_mota = 100.0 * mota
     print("------------------------\nValidation F1 score = {:.4f}".format(val_f1))
     print("Validation MOTA = {:.2f}%\n------------------------".format(val_mota))
-    with open(os.path.join(args.output_dir, "logs.txt"), "a") as f:
-        f.write("\nValidation F1 score = {:.4f}\n".format(val_f1))
-        f.write("Validation MOTA = {:.2f}%\n------------------------\n\n".format(val_mota))
+    f_log.write("\nValidation F1 score = {:.4f}\n".format(val_f1))
+    f_log.write("Validation MOTA = {:.2f}%\n------------------------\n\n".format(val_mota))
 
     # now save the model if it has better MOTA than the best model seen so forward
     if val_mota > best_mota:
@@ -280,3 +278,4 @@ if __name__ == '__main__':
         fig3.savefig(os.path.join(args.output_dir, 'val_mota.jpg'))
 
     plt.close('all')
+    f_log.close()
