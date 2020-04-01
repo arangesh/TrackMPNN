@@ -32,7 +32,7 @@ If you would like to re-generate these features, you can do so by using the scri
 TrackMPNN can be trained using [this](https://github.com/arangesh/TrackMPNN/blob/master/train.py) script as follows:
 ```shell
 pipenv shell # activate virtual environment
-python train.py --dataset-root-path=/path/to/kitti-mots/ --timesteps=5
+python train.py --dataset-root-path=/path/to/kitti-mots/ --timesteps=5 --random-transforms
 exit # exit virtual environment
 ```
 
