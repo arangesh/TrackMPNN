@@ -1,13 +1,21 @@
 import os
 import numpy as np
 import json
+import random
 from torch.utils import data
 
 from utils.dataset import get_tracking_data
 
 
+def decision(probability):
+    """
+    Function that returns True with probability
+    """
+    return random.random() < probability
+
+
 class KittiMOTSDataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', timesteps=5):
+    def __init__(self, dataset_root_path=None, split='train', timesteps=5, random_transforms=False):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -16,7 +24,9 @@ class KittiMOTSDataset(data.Dataset):
 
         self.split = split
         self.timesteps = timesteps
-        if split == 'test':
+        self.random_transforms = random_transforms
+        self.dropout = 0.2 # probability of a detection being dropped
+        if self.split == 'test':
             self.dataset_path = os.path.join(dataset_root_path, 'testing', 'gcn_features')
         else:
             self.dataset_path = os.path.join(dataset_root_path, 'training', 'gcn_features')
@@ -37,7 +47,7 @@ class KittiMOTSDataset(data.Dataset):
             std.extend(data['convex_hull_3d'])
             self.std = np.array([std], dtype='float32')
         
-        print('Finished preparing ' + split + ' dataset!')
+        print('Finished preparing ' + self.split + ' dataset!')
 
     def __len__(self):
         """Denotes the total number of samples"""
@@ -47,26 +57,50 @@ class KittiMOTSDataset(data.Dataset):
         """Generates one sample of data"""
         input_info = self.dataset[index]
 
+        # time reversal with probability 0.5
+        random_transforms_tr = self.random_transforms and decision(0.5)
+        # horizontal flip with probability 0.5
+        random_transforms_hf = self.random_transforms and decision(0.5)
+
         features, labels = [], []
-        for fr in range(input_info[1], input_info[2]):
+        fr_range = range(input_info[1], input_info[2], 1 if input_info[1] <= input_info[2] else -1)
+        max_fr = max(fr_range)
+
+        for fr in fr_range:
             with open(os.path.join(self.dataset_path, input_info[0], '%.6d.json' % (fr,))) as json_file:
                 data = json.load(json_file)
                 for d in range(len(data['score'])):
                     if not data['score'][d]:
                         continue
+                    # random dropout
+                    if decision(self.dropout):
+                        continue
+
                     # each feature vector for a detection in the sequence contains:
-                    # [2d_bbox_score (1), 2d_bbox_coords (4), keypoint_appearance_feats (64), 3d_convex_hull_coords (10)]
+                    # [2d_bbox_score (1), 2d_bbox_coords [x1, y1, x2, y2] (4), keypoint_appearance_feats (64), 3d_convex_hull_coords (10)]
                     datum = [data['score'][d]]
-                    datum.extend(data['bbox_2d'][d])
-                    datum.extend(data['appearance'][d])
-                    datum.extend(data['convex_hull_3d'][d])
+                    bbox_2d = data['bbox_2d'][d]
+                    appearance = data['appearance'][d]
+                    convex_hull_3d = data['convex_hull_3d'][d]
+
+                    if random_transforms_hf:
+                        bbox_2d = [1382 - bbox_2d[2], bbox_2d[1], 1382 - bbox_2d[0], bbox_2d[3]]
+                        appearance = [appearance[x] for i in range(64, 0, -8) for x in range(i-8, i)]
+                        convex_hull_3d = [-x if i<len(convex_hull_3d)/2 else x for (i, x) in enumerate(convex_hull_3d)]
+
+                    datum.extend(bbox_2d)
+                    datum.extend(appearance)
+                    datum.extend(convex_hull_3d)
                     features.append(datum)
                     # target labels for each detection in the sequence contains:
                     # [frame_no (1), track_id (1)]
                     if self.split == 'test':
                         labels.append([fr, -1])
                     else:
-                        labels.append([fr, data['track_id'][d]])
+                        if random_transforms_tr: # time reversal
+                            labels.append([max_fr - fr, data['track_id'][d]])
+                        else:
+                            labels.append([fr, data['track_id'][d]])
 
         if len(features) != 0 and len(labels) != 0:
             features = (np.array(features, dtype='float32') - self.mean) / self.std # normalize/standardize features
