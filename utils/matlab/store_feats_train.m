@@ -4,7 +4,6 @@ warning('off','all')
 clc;
 clear ;
 root = '/path/to/kitti-mots';
-root = '/media/akshay/SSD1/kitti-mots';
 
 dataset_path = fullfile(root, 'training');
 mkdir(fullfile(dataset_path, 'gcn_features'));
