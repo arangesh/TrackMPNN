@@ -38,7 +38,7 @@ def infer(model):
         y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X_seq, y_seq, mode='test', cuda=args.cuda)
         
         # compute the classification scores
-        logits, scores, states = model(feats, None, node_adj, edge_adj)
+        scores, states = model(feats, None, node_adj, edge_adj)
         scores = torch.cat((1-scores, scores), dim=1)
         if not args.tp_classifier:
             idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
@@ -50,7 +50,7 @@ def infer(model):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
                 use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
-            logits, scores, states = model(feats, states, node_adj, edge_adj)
+            scores, states = model(feats, states, node_adj, edge_adj)
             scores = torch.cat((1-scores, scores), dim=1)
             if not args.tp_classifier:
                 idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
