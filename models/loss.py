@@ -1,5 +1,47 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+
+
+def create_targets(labels, node_adj, idx_node):
+    idx_node = idx_node.detach().cpu().numpy().astype('int64') # (D,)
+    targets = torch.zeros_like(labels) # (N,)
+    targets[idx_node] = labels[idx_node] # replicate labels for detection nodes
+    labels = labels.view(1, -1) # (1, N)
+    node_adj = node_adj.detach().cpu().to_dense().numpy().astype('int64') # (N, N)
+    # reset diagonals to zeros
+    diag_ind = np.diag_indices(node_adj.shape[0])
+    node_adj[diag_ind] = 0
+
+    for idx in idx_node:
+        # for edges from the past
+        idx_ce = np.nonzero(node_adj[:idx, idx])[0]
+        if idx_ce.size > 0:
+            # find edges connected to detections from same track
+            pos_edges = torch.nonzero((labels[:, idx_ce]))[:, 1]
+            if pos_edges.numel() == 0: # if no positive edge
+                pass
+            elif pos_edges.numel() == 1: # if only one positive edge
+                targets[idx_ce[pos_edges]] = 1
+            elif pos_edges.numel() > 1: # if multiple positive edges
+                # use the edge connected to the latest positive detection
+                targets[idx_ce[pos_edges[-1:]]] = 1
+
+        # for edges to the future
+        idx_ce = idx + np.nonzero(node_adj[idx:, idx])[0]
+        if idx_ce.size > 0:
+            # find edges connected to detections from same track
+            pos_edges = torch.nonzero((labels[:, idx_ce]))[:, 1]
+            if pos_edges.numel() == 0: # if no positive edge
+                pass
+            elif pos_edges.numel() == 1: # if only one positive edge
+                targets[idx_ce[pos_edges]] = 1
+            elif pos_edges.numel() > 1: # if multiple positive edges
+                # use the edge connected to the earliest positive detection
+                targets[idx_ce[pos_edges[:1]]] = 1
+    return targets
+
 
 class FocalLoss(nn.Module):
     def __init__(self, gamma=0, alpha=None, size_average=True):
@@ -11,21 +53,59 @@ class FocalLoss(nn.Module):
         self.size_average = size_average
         self.eps = 1e-10
 
-    def forward(self, output, target):
-        output = torch.stack((1 - output, output), dim=1) # (N, 2)
-        target = target.view(-1, 1) # (N, 1)
+    def forward(self, outputs, targets):
+        outputs = torch.stack((1 - outputs, outputs), dim=1) # (N, 2)
+        targets = targets.view(-1, 1) # (N, 1)
 
-        logpt = torch.log(output + self.eps)
-        logpt = logpt.gather(1, target)
+        logpt = torch.log(outputs + self.eps)
+        logpt = logpt.gather(1, targets)
         logpt = logpt.view(-1)
         pt = torch.exp(logpt)
 
         if self.alpha is not None:
-            if self.alpha.type() != output.data.type():
-                self.alpha = self.alpha.type_as(output.data)
-            at = self.alpha.gather(0, target.data.view(-1))
+            if self.alpha.type() != outputs.data.type():
+                self.alpha = self.alpha.type_as(outputs.data)
+            at = self.alpha.gather(0, targets.data.view(-1))
             logpt = logpt * at
 
         loss = -1 * (1 - pt)**self.gamma * logpt
         if self.size_average: return loss.mean()
         else: return loss.sum()
+
+
+class CELoss(nn.Module):
+    def __init__(self):
+        super(CELoss, self).__init__()
+        self.nll = nn.NLLLoss()
+
+    def forward(self, outputs, targets, node_adj, idx_node):
+        loss = 0
+        idx_node = idx_node.detach().cpu().numpy().astype('int64') # (D,)
+        outputs = outputs.view(1, -1) # (1, N)
+        targets = targets.view(1, -1) # (1, N)
+        node_adj = node_adj.detach().cpu().to_dense().numpy().astype('int64') # (N, N)
+        # reset diagonals to zeros
+        diag_ind = np.diag_indices(node_adj.shape[0])
+        node_adj[diag_ind] = 0
+
+        for idx in idx_node:
+            # for edges from the past
+            idx_ce = np.nonzero(node_adj[:idx, idx])[0]
+            if idx_ce.size > 0:
+                # find edges connected to detections from same track
+                pos_edges = torch.nonzero((targets[:, idx_ce]))[:, 1]
+                if pos_edges.numel() == 0: # if no positive edge
+                    pass
+                elif pos_edges.numel() == 1: # if only one positive edge
+                    loss += F.cross_entropy(outputs[:, idx_ce], pos_edges) / idx_ce.size
+
+            # for edges to the future
+            idx_ce = idx + np.nonzero(node_adj[idx:, idx])[0]
+            if idx_ce.size > 0:
+                # find edges connected to detections from same track
+                pos_edges = torch.nonzero((targets[:, idx_ce]))[:, 1]
+                if pos_edges.numel() == 0: # if no positive edge
+                    pass
+                elif pos_edges.numel() == 1: # if only one positive edge
+                    loss += F.cross_entropy(outputs[:, idx_ce], pos_edges) / idx_ce.size
+        return loss

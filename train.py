@@ -14,7 +14,7 @@ from dataset.kitti_mots import KittiMOTSDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics
 from utils.training_options import args
-from models.loss import FocalLoss
+from models.loss import create_targets, FocalLoss, CELoss
 
 
 kwargs_train = {'batch_size': 1, 'shuffle': True, 'num_workers': 1}
@@ -58,19 +58,23 @@ def train(model, epoch):
         # compute the loss
         idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
         idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
+        # calculate targets for CE and BCE(Focal) loss
+        targets = create_targets(labels, node_adj, idx_node)
+        # calculate CE loss
+        loss = ce_loss(scores, targets, node_adj, idx_node)
         if args.tp_classifier:
-            loss = focal_loss_node(scores[idx_node, 0], labels[idx_node]) + focal_loss_edge(scores[idx_edge, 0], labels[idx_edge])
-            scores = torch.cat((1-scores, scores), dim=1)
+            loss += focal_loss_node(scores[idx_node, 0], targets[idx_node]) + focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
+            scores = torch.cat((1 - scores, scores), dim=1)
             idx = torch.cat((idx_node, idx_edge))
         else:
-            loss = focal_loss_edge(scores[idx_edge, 0], labels[idx_edge])
-            scores = torch.cat((1-scores, scores), dim=1)
+            loss += focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
+            scores = torch.cat((1 - scores, scores), dim=1)
             scores[idx_node, 0] = 0
             scores[idx_node, 1] = 1
             idx = idx_edge
         # compute the f1 score
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
-        epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+        epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
         # loop through all frames
         for t_cur in range(t_st, t_end):
@@ -81,19 +85,23 @@ def train(model, epoch):
             # compute the loss
             idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
             idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
+            # calculate targets for CE and BCE(Focal) loss
+            targets = create_targets(labels, node_adj, idx_node)
+            # calculate CE loss
+            loss += ce_loss(scores, targets, node_adj, idx_node)
             if args.tp_classifier:
-                loss += (focal_loss_node(scores[idx_node, 0], labels[idx_node]) + focal_loss_edge(scores[idx_edge, 0], labels[idx_edge]))
-                scores = torch.cat((1-scores, scores), dim=1)
+                loss += focal_loss_node(scores[idx_node, 0], targets[idx_node]) + focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
+                scores = torch.cat((1 - scores, scores), dim=1)
                 idx = torch.cat((idx_node, idx_edge))
             else:
-                loss += focal_loss_edge(scores[idx_edge, 0], labels[idx_edge])
-                scores = torch.cat((1-scores, scores), dim=1)
+                loss += focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
+                scores = torch.cat((1 - scores, scores), dim=1)
                 scores[idx_node, 0] = 0
                 scores[idx_node, 1] = 1
                 idx = idx_edge
             # compute the F1 score
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
-            epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+            epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
         epoch_loss.append(loss.item())
         loss.backward()
@@ -146,6 +154,8 @@ def val(model, epoch):
 
         idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
         idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
+        # calculate targets for computing metrics
+        targets = create_targets(labels, node_adj, idx_node)
         if args.tp_classifier:
             idx = torch.cat((idx_node, idx_edge))
         else:
@@ -154,7 +164,7 @@ def val(model, epoch):
             idx = idx_edge
         # compute the f1 score
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
-        epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+        epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
         # loop through all frames
         for t_cur in range(t_st, t_end):
@@ -166,6 +176,8 @@ def val(model, epoch):
 
             idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
             idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
+            # calculate targets for computing metrics
+            targets = create_targets(labels, node_adj, idx_node)
             if args.tp_classifier:
                 idx = torch.cat((idx_node, idx_edge))
             else:
@@ -174,7 +186,7 @@ def val(model, epoch):
                 idx = idx_edge
             # compute the f1 score
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
-            epoch_f1.append(f1_score(labels[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+            epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
             # if no new detections are added, don't remove detections either
             if feats.size()[0] == 0:
@@ -230,8 +242,11 @@ if __name__ == '__main__':
     print(model)
 
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-    focal_loss_node = FocalLoss(gamma=2, alpha=0.25, size_average=True)
-    focal_loss_edge = FocalLoss(gamma=2, alpha=0.25, size_average=True)
+    # BCE(Focal) loss applied to each node/edge individually
+    focal_loss_node = FocalLoss(gamma=0, alpha=None, size_average=True)
+    focal_loss_edge = FocalLoss(gamma=0, alpha=None, size_average=True)
+    # CE loss applied to edges collectively
+    ce_loss = CELoss()
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)
