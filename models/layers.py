@@ -7,15 +7,17 @@ class FactorGraphGRU(nn.Module):
     """
     Similar to GCN, except different GRU cells for nodes and edges (i.e. variables and factors)
     """
-    def __init__(self, nhidden, bias=True, msg_type='concat'):
+    def __init__(self, nhidden, bias=True, msg_type):
         super(FactorGraphGRU, self).__init__()
         self.nhidden = nhidden
         self.msg_type = msg_type
         self.bias = bias
         if self.msg_type == 'concat':
             self.edge_gru = nn.GRUCell(2*nhidden, nhidden, bias=self.bias)
-        else:
+        elif self.msg_type == 'diff':
             self.edge_gru = nn.GRUCell(nhidden, nhidden, bias=self.bias)
+        else:
+            assert False, 'Incorrect message type for model!'
         self.node_gru = nn.GRUCell(nhidden, nhidden, bias=self.bias)
         self.reset_parameters()
 
