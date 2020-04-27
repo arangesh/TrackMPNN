@@ -22,13 +22,21 @@ args = parser.parse_args()
 args.tp_classifier = not args.no_tp_classifier
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 if args.output_dir is None:
-    args.output_dir = datetime.now().strftime("%Y-%m-%d-%H:%M-results")
+    args.output_dir = datetime.now().strftime("%Y-%m-%d-%H:%M-infer")
     args.output_dir = os.path.join('.', 'experiments', args.output_dir)
 
 if not os.path.exists(args.output_dir):
     os.makedirs(args.output_dir)
 else:
     assert False, 'Output directory already exists!'
+
+# load args used for training snapshot (if available)
+if os.path.exists(os.path.join(os.path.dirname(args.snapshot), 'config.json')):
+	with open(os.path.join(os.path.dirname(args.snapshot), 'config.json')) as f:
+		json_args = json.load(f)
+	# augment infer args with training args for model consistency
+	args.hidden = json_args['hidden']
+	args.msg_type = json_args['msg_type']
 
 # store config in output directory
 with open(os.path.join(args.output_dir, 'config.json'), 'w') as f:
