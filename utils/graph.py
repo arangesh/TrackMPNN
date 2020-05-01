@@ -62,13 +62,10 @@ def hungarian(node_adj, scores, y_pred, t, threshold=0.5):
     for i in idx_prev_edges:
         idx_prev = np.concatenate((idx_prev, np.where(node_adj[i, :])[0][0:1]), 0)
 
-    # remove duplicates and any previous detections that that have already been associated
+    # remove duplicates
     idx_prev = np.unique(idx_prev)
-    del_ids = np.array([], dtype='int64')
-    for i in idx_prev:
-        if y_pred[i, 2] != -1:
-            del_ids = np.concatenate((del_ids, [i]), 0)
-    idx_prev = np.delete(idx_prev, del_ids, 0)
+    # remove already associated detections
+    idx_prev = idx_prev[np.where(y_pred[idx_prev, 2] == -1)[0]]
     
     # create cost matrix for bipartite matching problem
     C = np.full((idx_prev.size, idx_t.size), 1.0, dtype='float32')
