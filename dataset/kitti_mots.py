@@ -63,7 +63,7 @@ class KittiMOTSDataset(data.Dataset):
         random_transforms_hf = self.random_transforms and decision(0.5)
 
         features, labels = [], []
-        fr_range = range(input_info[1], input_info[2], 1 if input_info[1] <= input_info[2] else -1)
+        fr_range = range(input_info[1], input_info[2], 1)
         max_fr = max(fr_range)
 
         for fr in fr_range:
@@ -73,7 +73,7 @@ class KittiMOTSDataset(data.Dataset):
                     if not data['score'][d]:
                         continue
                     # random dropout
-                    if decision(self.dropout):
+                    if self.random_transforms and decision(self.dropout):
                         continue
 
                     # each feature vector for a detection in the sequence contains:
