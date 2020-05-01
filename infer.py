@@ -35,7 +35,7 @@ def infer(model):
         y_out[:, 1] = -1
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_init, t_end = initialize_graph(X_seq, y_seq, mode='test', cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, mode='test', cuda=args.cuda)
         
         # compute the classification scores
         scores, states = model(feats, None, node_adj, edge_adj)
@@ -46,7 +46,7 @@ def infer(model):
             scores[idx_node, 1] = 1
 
         # loop through all frames
-        for t_cur in range(t_init, t_end):
+        for t_cur in range(t_st, t_end):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
                 use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
