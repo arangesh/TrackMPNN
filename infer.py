@@ -5,14 +5,14 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 
 from models.track_mpnn import TrackMPNN
-from dataset.kitti_mots import KittiMOTSDataset
+from dataset.kitti_mot import KittiMOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.dataset import store_results_kitti
 from utils.infer_options import args
 
 
 kwargs_infer = {'batch_size': 1, 'shuffle': False, 'num_workers': 1}
-infer_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'test', args.timesteps, False), **kwargs_infer)
+infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.timesteps, False), **kwargs_infer)
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
