@@ -14,7 +14,7 @@ def decision(probability):
     return random.random() < probability
 
 
-class KittiMOTSDataset(data.Dataset):
+class KittiMOTDataset(data.Dataset):
     def __init__(self, dataset_root_path=None, split='train', timesteps=5, random_transforms=False):
         """Initialization"""
 
