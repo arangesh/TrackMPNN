@@ -6,7 +6,7 @@ import json
 
 parser = argparse.ArgumentParser('Options for training Track-MPNN models in PyTorch...')
 
-parser.add_argument('--dataset-root-path', type=str, default='/home/akshay/data/kitti-mots', help='path to dataset')
+parser.add_argument('--dataset-root-path', type=str, default='/home/akshay/data/kitti-mot', help='path to dataset')
 parser.add_argument('--output-dir', type=str, default=None, help='output directory for model and logs')
 parser.add_argument('--snapshot', type=str, default=None, help='use a pre-trained model snapshot')
 parser.add_argument('--timesteps', type=int, default=5, metavar='TS', help='number of timesteps to train on')
