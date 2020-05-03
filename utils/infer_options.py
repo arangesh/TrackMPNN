@@ -29,14 +29,14 @@ else:
 
 # load args used for training snapshot (if available)
 if os.path.exists(os.path.join(os.path.dirname(args.snapshot), 'config.json')):
-	with open(os.path.join(os.path.dirname(args.snapshot), 'config.json')) as f:
-		json_args = json.load(f)
-	# augment infer args with training args for model consistency
-	args.timesteps = json_args['timesteps']
-	args.hidden = json_args['hidden']
-	args.msg_type = json_args['msg_type']
-	args.no_tp_classifier = json_args['no_tp_classifier']
-	args.tp_classifier = not args.no_tp_classifier
+    with open(os.path.join(os.path.dirname(args.snapshot), 'config.json')) as f:
+        json_args = json.load(f)
+    # augment infer args with training args for model consistency
+    args.timesteps = json_args['timesteps']
+    args.hidden = json_args['hidden']
+    args.msg_type = json_args['msg_type']
+    args.no_tp_classifier = json_args['no_tp_classifier']
+    args.tp_classifier = not args.no_tp_classifier
 
 # store config in output directory
 with open(os.path.join(args.output_dir, 'config.json'), 'w') as f:

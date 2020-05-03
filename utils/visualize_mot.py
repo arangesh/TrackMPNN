@@ -11,8 +11,8 @@ import colorsys
 
 
 # adapted from https://github.com/xingyizhou/CenterTrack/blob/master/src/tools/vis_tracking_kitti.py
-TRK_PATH = sys.argv[1]
-DATASET_PATH = sys.argv[2]
+RESULT_PATH = sys.argv[1]
+IMAGE_PATH = sys.argv[2]
 SAVE_VIDEO = True
 VIZ_VIDEO = False
 
@@ -46,39 +46,42 @@ def draw_bbox(img, bboxes, colors):
 
 
 if __name__ == '__main__':
-    if SAVE_VIDEO:
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        video = cv2.VideoWriter('{}.avi'.format(TRK_PATH[:-4],), fourcc, 10.0, (1024, 375))
-
-    preds = {}
-    pred_file = open(TRK_PATH, 'r')
-    preds[0] = defaultdict(list)
-    track_id_list = []
-    for line in pred_file:
-        tmp = line[:-1].split(' ')
-        frame_id = int(tmp[0])
-        track_id = int(tmp[1])
-        track_id_list.append(track_id)
-        cat_id = cat_ids[tmp[2]]
-        bbox = [float(tmp[6]), float(tmp[7]), float(tmp[8]), float(tmp[9])]
-        score = float(tmp[17])
-        preds[0][frame_id].append(bbox + [track_id, cat_id, score])
-
-    images_path = os.path.join(DATASET_PATH, TRK_PATH[-8:-4])
-    images = os.listdir(images_path)
-    num_images = len([image for image in images if 'png' in image])
-    colors = generate_colors(max(track_id_list) + 1)
+    seqs = glob.glob(os.path.join(RESULT_PATH, '*.txt'))
     
-    for frame_id in range(num_images):
-        file_path = '{}/{:06d}.png'.format(images_path, frame_id)
-        img = cv2.imread(file_path)
-        img_pred = img.copy()
-        draw_bbox(img_pred, preds[0][frame_id], colors)
-        if VIZ_VIDEO:
-            cv2.imshow('pred{}'.format(0), img_pred)
-            cv2.waitKey()
+    for k, seq in enumerate(seqs):
         if SAVE_VIDEO:
-            video.write(cv2.resize(img_pred, (1024, 375)))
-        print('Frame %.4d/%.4d...' % (frame_id, num_images-1))
-    if SAVE_VIDEO:
-        video.release()
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            video = cv2.VideoWriter('{}.avi'.format(seq[:-4],), fourcc, 10.0, (1024, 375))
+
+        preds = {}
+        pred_file = open(seq, 'r')
+        preds[0] = defaultdict(list)
+        track_id_list = []
+        for line in pred_file:
+            tmp = line[:-1].split(' ')
+            frame_id = int(tmp[0])
+            track_id = int(tmp[1])
+            track_id_list.append(track_id)
+            cat_id = cat_ids[tmp[2]]
+            bbox = [float(tmp[6]), float(tmp[7]), float(tmp[8]), float(tmp[9])]
+            score = float(tmp[17])
+            preds[0][frame_id].append(bbox + [track_id, cat_id, score])
+
+        images_path = os.path.join(IMAGE_PATH, seq[-8:-4])
+        images = os.listdir(images_path)
+        num_images = len([image for image in images if 'png' in image])
+        colors = generate_colors(max(track_id_list) + 1)
+        
+        for frame_id in range(num_images):
+            file_path = '{}/{:06d}.png'.format(images_path, frame_id)
+            img = cv2.imread(file_path)
+            img_pred = img.copy()
+            draw_bbox(img_pred, preds[0][frame_id], colors)
+            if VIZ_VIDEO:
+                cv2.imshow('pred{}'.format(0), img_pred)
+                cv2.waitKey()
+            if SAVE_VIDEO:
+                video.write(cv2.resize(img_pred, (1024, 375)))
+            print('Seq %s, Frame %.4d/%.4d...' % (seq[-8:-4], frame_id, num_images-1))
+        if SAVE_VIDEO:
+            video.release()
