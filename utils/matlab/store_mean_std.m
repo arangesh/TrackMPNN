@@ -102,9 +102,9 @@ for s = [0:16, 18:20]
             % extract relative pose between current and FIRST FRAME!
             T = reshape(pose(i, 2:end), [3, 4]);
             r = rodrigues(T(1:3, 1:3));
-            motion = [-(pose(1,11)-pose(i,11)); % translation params only?
-                -(pose(1,12)-pose(i,12));
-                -(pose(1,13)-pose(i,13));
+            motion = [-(0-pose(i,11)); % translation params only?
+                -(0-pose(i,12));
+                -(0-pose(i,13));
                 deg2rad(0)];
             
             % scale the motion using empiracally estimated scale factor (because ORBSLAM gives reconstructs upto scale)
@@ -217,9 +217,9 @@ for s = 0:28
             % extract relative pose between current and FIRST FRAME!
             T = reshape(pose(i, 2:end), [3, 4]);
             r = rodrigues(T(1:3, 1:3));
-            motion = [-(pose(1,11)-pose(i,11)); % translation params only?
-                -(pose(1,12)-pose(i,12));
-                -(pose(1,13)-pose(i,13));
+            motion = [-(0-pose(i,11)); % translation params only?
+                -(0-pose(i,12));
+                -(0-pose(i,13));
                 deg2rad(0)];
             
             % scale the motion using empiracally estimated scale factor (because ORBSLAM gives reconstructs upto scale)

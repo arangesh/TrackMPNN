@@ -5,14 +5,14 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 
 from models.track_mpnn import TrackMPNN
-from dataset.kitti_mots import KittiMOTSDataset
+from dataset.kitti_mot import KittiMOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.dataset import store_results_kitti
 from utils.infer_options import args
 
 
 kwargs_infer = {'batch_size': 1, 'shuffle': False, 'num_workers': 1}
-infer_loader = DataLoader(KittiMOTSDataset(args.dataset_root_path, 'test', args.timesteps, False), **kwargs_infer)
+infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.timesteps, False), **kwargs_infer)
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
@@ -62,11 +62,11 @@ def infer(model):
                 continue
 
             if t_cur == t_end - 1:
-                y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 10, 
+                y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 0, 
                     use_hungraian=args.hungarian, cuda=args.cuda)
             else:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, 
-                    t_cur - args.timesteps + 2, 10, use_hungraian=args.hungarian, cuda=args.cuda)
+                    t_cur - args.timesteps + 2, 0, use_hungraian=args.hungarian, cuda=args.cuda)
             print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t_cur - args.timesteps + 1), t_end))
         print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, t_end, t_end))
 
