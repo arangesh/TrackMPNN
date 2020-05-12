@@ -77,7 +77,7 @@ class KittiMOTDataset(data.Dataset):
                         continue
 
                     # each feature vector for a detection in the sequence contains:
-                    # [2d_bbox_score (1), 2d_bbox_coords [x1, y1, x2, y2] (4), keypoint_appearance_feats (64), 3d_convex_hull_coords (10)]
+                    # [2d_bbox_score (1), 2d_bbox_coords [x1, y1, x2, y2] (4), keypoint_appearance_feats (64), 3d_convex_hull_coords (10/14)]
                     datum = [data['score'][d]]
                     bbox_2d = data['bbox_2d'][d]
                     appearance = data['appearance'][d]

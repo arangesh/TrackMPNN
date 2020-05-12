@@ -34,15 +34,17 @@ class TrackMPNN(nn.Module):
         I_node = torch.diag(torch.diag(node_adj.to_dense())).to_sparse() # (N', N')
         I_edge = torch.diag(torch.diag(edge_adj.to_dense())).to_sparse() # (N', N')
 
-        if x.size()[0] > 0: 
-            conv_hull =  x[:, -10:] # (N'-N, 10)
+        if x.size()[0] > 0:
+            nhullfeats = 10
+            nhullpts = int(nhullfeats / 2)
+            conv_hull =  x[:, -nhullfeats:] # (N'-N, nhullfeats)
             if next(self.parameters()).is_cuda:
-                conv_hull = torch.cat((conv_hull.view(-1, 2, 5), torch.zeros(conv_hull.size()[0], 1, 5).cuda()), dim=1) # (N'-N, 3, 5)
+                conv_hull = torch.cat((conv_hull.view(-1, 2, nhullpts), torch.zeros(conv_hull.size()[0], 1, nhullpts).cuda()), dim=1) # (N'-N, 3, nhullpts)
             else:
-                conv_hull = torch.cat((conv_hull.view(-1, 2, 5), torch.zeros(conv_hull.size()[0], 1, 5)), dim=1) # (N'-N, 3, 5)
+                conv_hull = torch.cat((conv_hull.view(-1, 2, nhullpts), torch.zeros(conv_hull.size()[0], 1, nhullpts)), dim=1) # (N'-N, 3, nhullpts)
 
             conv_hull_feat, _, _ = self.pointnet(conv_hull) # (N'-N, 64)
-            x = torch.cat((x[:, :-10], conv_hull_feat), dim=1) # (N'-N, nfeatures)
+            x = torch.cat((x[:, :-nhullfeats], conv_hull_feat), dim=1) # (N'-N, nfeatures)
             x = self.input_transform(x) # (N'-N, nhidden)
 
             h_update = torch.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhidden)

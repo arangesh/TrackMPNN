@@ -45,7 +45,7 @@ def store_results_kitti(y_out, X, output_path):
     times = np.sort(y_out[:, 0])
     t_st = times[0]
     t_ed = times[-1]
-
+    
     with open(output_path, "w") as f:
         for t in range(t_st, t_ed+1):
             hids = np.where(np.logical_and(y_out[:, 0] == t, y_out[:, 1] != -1))[0]
