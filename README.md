@@ -21,7 +21,7 @@ Note that this repository additionally uses code from [PointNet.pytorch](https:/
 
 5) Clone and make DCNv2:
 ```shell
-cd models/dla/src/lib/models/networks
+cd models/dla
 git clone https://github.com/CharlesShang/DCNv2
 cd DCNv2
 ./make.sh
