@@ -11,8 +11,8 @@ from utils.dataset import store_results_kitti
 from utils.infer_options import args
 
 
-kwargs_infer = {'batch_size': 1, 'shuffle': False, 'num_workers': 1}
-infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.timesteps, False), **kwargs_infer)
+kwargs_infer = {'batch_size': 1, 'shuffle': False}
+infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.timesteps, None, False, args.cuda), **kwargs_infer)
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeatures=1 + 4 + 64 + 10 - 10 + 64, nhidden=args.hidden, msg_type=args.msg_type)
+    model = TrackMPNN(nfeatures=1 + 4 + args.img_feats + 10 - 10 + 64, nhidden=args.hidden, msg_type=args.msg_type)
     model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
         model.cuda()

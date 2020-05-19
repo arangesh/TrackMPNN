@@ -12,6 +12,7 @@ parser.add_argument('--snapshot', type=str, default=None, help='use a pre-traine
 parser.add_argument('--timesteps', type=int, default=5, metavar='TS', help='number of timesteps to train on')
 parser.add_argument('--hungarian', action='store_true', default=False, help='decode tracks using frame-by-frame Hungarian algorithm')
 parser.add_argument('--no-tp-classifier', action='store_true', default=False, help='train network to only classify edges')
+parser.add_argument('--img-feats', type=int, default=64, metavar='NIMG', help='number of image features')
 parser.add_argument('--hidden', type=int, default=64, metavar='NH', help='number of hidden layer nodes')
 parser.add_argument('--msg-type', type=str, default='diff', help='type of message passing operation (diff/concat)')
 parser.add_argument('--epochs', type=int, default=100, metavar='EP', help='number of epochs to train for')

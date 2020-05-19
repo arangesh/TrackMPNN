@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torchvision
 
 from models.pointnet.model import PointNetfeatsmall
 from models.layers import FactorGraphGRU

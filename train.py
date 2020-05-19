@@ -17,10 +17,10 @@ from utils.training_options import args
 from models.loss import create_targets, FocalLoss, CELoss
 
 
-kwargs_train = {'batch_size': 1, 'shuffle': True, 'num_workers': 1}
-train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.timesteps, args.random_transforms), **kwargs_train)
-kwargs_val = {'batch_size': 1, 'shuffle': False, 'num_workers': 1}
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.timesteps, False), **kwargs_val)
+kwargs_train = {'batch_size': 1, 'shuffle': True}
+train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.timesteps, args.img_feats, args.random_transforms, args.cuda), **kwargs_train)
+kwargs_val = {'batch_size': 1, 'shuffle': False}
+val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.timesteps, None, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
@@ -39,13 +39,14 @@ def random_seed(seed_value, use_cuda):
 def train(model, epoch):
     epoch_loss, epoch_f1 = list(), list()
     model.train()
+    train_loader.dataset.detector.train()
     for b_idx, (X_seq, y_seq) in enumerate(train_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
         if args.cuda:
             X_seq, y_seq = X_seq.cuda(), y_seq.cuda()
         # backpropagate gradient through feature matrix
-        X_seq.requires_grad = True
+        # X_seq.requires_grad = True
 
         # train the network
         optimizer.zero_grad()
@@ -133,6 +134,10 @@ def val(model, epoch):
     epoch_f1 = list()
     accs = []
     model.eval()
+    val_loader.dataset.detector = train_loader.dataset.detector
+    train_loader.dataset.detector = None
+    val_loader.dataset.detector.eval()
+    val_loader.dataset.num_img_feats = train_loader.dataset.num_img_feats
 
     for b_idx, (X_seq, y_seq) in enumerate(val_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
@@ -225,6 +230,9 @@ def val(model, epoch):
         # save the model
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
 
+    train_loader.dataset.detector = val_loader.dataset.detector
+    val_loader.dataset.detector = None
+
     return val_f1, val_mota
 
 
@@ -233,15 +241,16 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeatures=1 + 4 + 64 + 10 - 10 + 64, nhidden=args.hidden, msg_type=args.msg_type)
+    model = TrackMPNN(nfeatures=1 + 4 + args.img_feats + 10 - 10 + 64, nhidden=args.hidden, msg_type=args.msg_type)
 
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
         model.cuda()
+        train_loader.dataset.detector.cuda()
     print(model)
 
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    optimizer = optim.Adam(list(model.parameters()) + list(train_loader.dataset.detector.parameters()), lr=args.learning_rate, weight_decay=args.weight_decay)
     # BCE(Focal) loss applied to each node/edge individually
     focal_loss_node = FocalLoss(gamma=0, alpha=None, size_average=True)
     focal_loss_edge = FocalLoss(gamma=0, alpha=None, size_average=True)
