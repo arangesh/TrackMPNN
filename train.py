@@ -229,6 +229,7 @@ def val(model, epoch):
         best_mota = val_mota
         # save the model
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
+        torch.save(val_loader.dataset.detector.state_dict(), os.path.join(args.output_dir, 'dla-detector_' + '%.4d' % (epoch,) + '.pth'))
 
     train_loader.dataset.detector = val_loader.dataset.detector
     val_loader.dataset.detector = None
