@@ -44,12 +44,12 @@ class KittiMOTDataset(data.Dataset):
 
         if random_transforms:
             self.image_transforms = transforms.Compose([
-                transforms.Resize((384, 1280)),
+                transforms.Resize((192, 640)),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
         else: 
             self.image_transforms = transforms.Compose([
-                transforms.Resize((384, 1280)),
+                transforms.Resize((192, 640)),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
@@ -88,10 +88,10 @@ class KittiMOTDataset(data.Dataset):
         c_x = (bbox[0] + bbox[2]) / 2.0
         c_y = (bbox[1] + bbox[3]) / 2.0
         c_x, c_y = round(c_x / down_ratio), round(c_y / down_ratio)
-        if c_x > 319:
-            c_x = 319
-        if c_y > 95:
-            c_y = 95
+        if c_x > 159:
+            c_x = 159
+        if c_y > 47:
+            c_y = 47
         feat = feat_maps[:, :, c_y, c_x]
         return feat
 
