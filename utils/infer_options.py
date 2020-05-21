@@ -1,8 +1,9 @@
 import os
 import argparse
-import torch
 from datetime import datetime
 import json
+
+import torch
 
 parser = argparse.ArgumentParser('Options for testing Track-MPNN models in PyTorch...')
 

@@ -14,9 +14,10 @@ for t = 2:T // because intialization step accounts for t=0 and t=1
 end
 network.backward(loss)
 """
-import torch
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+
+import torch
 
 
 def normalize(adj):

@@ -1,7 +1,8 @@
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 
 
 def create_targets(labels, node_adj, idx_node):

@@ -5,9 +5,8 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 
 from models.track_mpnn import TrackMPNN
-from dataset.kitti_mot import KittiMOTDataset
+from dataset.kitti_mot import KittiMOTDataset, store_results_kitti
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
-from utils.dataset import store_results_kitti
 from utils.infer_options import args
 
 

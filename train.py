@@ -1,8 +1,8 @@
 import os
+import statistics
 import matplotlib
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
-import statistics
 from sklearn.metrics import f1_score
 
 import torch
@@ -10,11 +10,11 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 
 from models.track_mpnn import TrackMPNN
+from models.loss import create_targets, FocalLoss, CELoss
 from dataset.kitti_mot import KittiMOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics
 from utils.training_options import args
-from models.loss import create_targets, FocalLoss, CELoss
 from utils.gradients import plot_grad_flow
 
 
