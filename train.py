@@ -108,7 +108,7 @@ def train(model, epoch):
         optimizer.step()
 
         # save gradient flow image through detector and tracker model
-        if b_idx % 100 == 0:
+        if (b_idx % 100 == 0) and args.plot_gradients:
             plot_grad_flow([train_loader.dataset.detector.named_parameters(), model.named_parameters()], 
                 os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
 
