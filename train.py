@@ -38,15 +38,13 @@ def random_seed(seed_value, use_cuda):
 # training function
 def train(model, epoch):
     epoch_loss, epoch_f1 = list(), list()
-    model.train()
-    train_loader.dataset.detector.train()
+    model.train() # set TrackMPNN model to train mode
+    train_loader.dataset.detector.train() # set detector to train mode
     for b_idx, (X_seq, y_seq) in enumerate(train_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
         if args.cuda:
             X_seq, y_seq = X_seq.cuda(), y_seq.cuda()
-        # backpropagate gradient through feature matrix
-        # X_seq.requires_grad = True
 
         # train the network
         optimizer.zero_grad()
@@ -133,11 +131,11 @@ def val(model, epoch):
     global best_mota
     epoch_f1 = list()
     accs = []
-    model.eval()
-    val_loader.dataset.detector = train_loader.dataset.detector
-    train_loader.dataset.detector = None
-    val_loader.dataset.detector.eval()
-    val_loader.dataset.num_img_feats = train_loader.dataset.num_img_feats
+    model.eval() # set TrackMPNN model to eval mode
+    val_loader.dataset.detector = train_loader.dataset.detector # use trained detector for the val loader
+    train_loader.dataset.detector = None # set trained detector to None to save memory
+    val_loader.dataset.detector.eval() # set detector model to eval mode
+    val_loader.dataset.num_img_feats = train_loader.dataset.num_img_feats # copy over number of image features used for tracking
 
     for b_idx, (X_seq, y_seq) in enumerate(val_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
@@ -227,12 +225,12 @@ def val(model, epoch):
     # now save the model if it has better MOTA than the best model seen so forward
     if val_mota > best_mota:
         best_mota = val_mota
-        # save the model
+        # save the TrackMPNN model and the detector
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
         torch.save(val_loader.dataset.detector.state_dict(), os.path.join(args.output_dir, 'dla-detector_' + '%.4d' % (epoch,) + '.pth'))
 
-    train_loader.dataset.detector = val_loader.dataset.detector
-    val_loader.dataset.detector = None
+    train_loader.dataset.detector = val_loader.dataset.detector # copy back the trained detector from the val loader
+    val_loader.dataset.detector = None # set detector from val loader to None to save memory
 
     return val_f1, val_mota
 
