@@ -15,6 +15,7 @@ from utils.graph import initialize_graph, update_graph, prune_graph, decode_trac
 from utils.metrics import create_mot_accumulator, calc_mot_metrics
 from utils.training_options import args
 from models.loss import create_targets, FocalLoss, CELoss
+from utils.gradients import plot_grad_flow
 
 
 kwargs_train = {'batch_size': 1, 'shuffle': True}
@@ -105,6 +106,10 @@ def train(model, epoch):
         epoch_loss.append(loss.item())
         loss.backward()
         optimizer.step()
+
+        # save gradient flow image through detector and tracker model
+        plot_grad_flow([train_loader.dataset.detector.named_parameters(), model.named_parameters()], 
+            os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
 
         if b_idx % args.log_schedule == 0:
             print('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}'.format(
