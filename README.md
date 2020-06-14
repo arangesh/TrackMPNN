@@ -27,12 +27,7 @@ cd DCNv2
 ./make.sh
 ```
 
-6) Download the pre-trained detector to the `weights/` folder:
-```shell
-cd TrackMPNN
-mkdir weights && cd weights/
-wget https://drive.google.com/file/d/10F9ZWpZ0SVHwg0xMKldIeKZenb7KktcH/view?usp=sharing
-```
+6) Download the [pre-trained detector weights](https://drive.google.com/file/d/10F9ZWpZ0SVHwg0xMKldIeKZenb7KktcH/view?usp=sharing) to the `TrackMPNN/weights` folder.
 
 ## Dataset
 1) Download the detection features (proposed by [MOTBeyondPixels](https://github.com/JunaidCS032/MOTBeyondPixels)) for the train and test split on the KITTI-MOTS dataset using [this link](https://drive.google.com/file/d/1xivQ4LC87vlpb4t_0nbkS_gTt81YxNdJ/view?usp=sharing)
