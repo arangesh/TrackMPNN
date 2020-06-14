@@ -80,7 +80,6 @@ class CELoss(nn.Module):
         self.nll = nn.NLLLoss()
 
     def forward(self, outputs, targets, node_adj, idx_node):
-        loss = torch.tensor(0.0)
         idx_node = idx_node.detach().cpu().numpy().astype('int64') # (D,)
         outputs = outputs.view(1, -1) # (1, N)
         targets = targets.view(1, -1) # (1, N)
@@ -89,6 +88,7 @@ class CELoss(nn.Module):
         diag_ind = np.diag_indices(node_adj.shape[0])
         node_adj[diag_ind] = 0
 
+        loss = torch.zeros_like(outputs[0, 0])
         for idx in idx_node:
             # for edges from the past
             idx_ce = np.nonzero(node_adj[:idx, idx])[0]
@@ -134,7 +134,7 @@ class EmbeddingLoss(nn.Module):
         C = len(cluster_ids)
 
         # calculate variance term
-        var_loss = torch.tensor(0.0)
+        var_loss = torch.zeros_like(features[0, 0])
         if C > 0:
             for c_id in cluster_ids:
                 cluster_means.append(torch.mean(features[labels[:, 1] == c_id, :], dim=0, keepdim=True))
@@ -143,14 +143,14 @@ class EmbeddingLoss(nn.Module):
             var_loss /= C
 
         # calculate distance term
-        dist_loss = torch.tensor(0.0)
+        dist_loss = torch.zeros_like(features[0, 0])
         if C > 1: # only if multiple clusters exist
             for i in range(C):
                 for j in range(C):
                     if i == j:
                         continue
                     mean_dist = torch.norm(cluster_means[i] - cluster_means[j], dim=1)
-                    dist_loss += torch.pow(F.relu(self.delta_dist - mean_dist), 2)
+                    dist_loss += torch.pow(F.relu(self.delta_dist - mean_dist[0]), 2)
             dist_loss /= (C * (C - 1))
 
         return var_loss + dist_loss
