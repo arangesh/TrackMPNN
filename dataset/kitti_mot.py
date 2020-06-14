@@ -9,7 +9,7 @@ from torch.utils import data
 import torchvision.transforms as transforms
 
 from models.loss import EmbeddingLoss
-from models.dla.pose_dla_dcn import get_pose_net
+from models.dla.model import create_model, load_model
 
 
 def get_tracking_data(dataset_path, split, timesteps):
@@ -97,8 +97,10 @@ class KittiMOTDataset(data.Dataset):
 
         if self.num_img_feats is not None:
             # initialize detector with necessary heads and pretrained imagenet weights
-            heads = {'hm': 3, 'depth': 1, 'rotation': 8, 'dim': 3, 'trk_feats': self.num_img_feats}
-            self.detector = get_pose_net(num_layers=34, heads=heads, head_conv=256, down_ratio=self.down_ratio)
+            heads = {'hm': 3, 'wh':2, 'reg':2, 'dep': 1, 'rot': 8, 'dim': 3, 'trk': self.num_img_feats}
+            self.detector = create_model(34, heads, 256)
+            self.detector = load_model(self.detector, os.path.join('.', 'weights', 'model_last_kitti.pth'))
+            #self.detector = get_pose_net(num_layers=34, heads=heads, head_conv=256, down_ratio=self.down_ratio)
         else:
             self.detector = None
 
@@ -143,7 +145,7 @@ class KittiMOTDataset(data.Dataset):
         """
         return random.random() < probability
 
-    def get_trk_feats(self, feat_maps, bbox, img_size_in, down_ratio=4):
+    def get_trk_feats(self, feat_maps, bbox, im_size_in, down_ratio=4):
         """
         Extract image features from bbox center location
         """
@@ -151,8 +153,8 @@ class KittiMOTDataset(data.Dataset):
         c_x = (bbox[0] + bbox[2]) / 2.0
         c_y = (bbox[1] + bbox[3]) / 2.0
         # account for image resizing
-        c_x = (c_x * self.im_size_out[1]) / img_size_in[1]
-        c_y = (c_y * self.im_size_out[0]) / img_size_in[0]
+        c_x = (c_x * self.im_size_out[1]) / im_size_in[1]
+        c_y = (c_y * self.im_size_out[0]) / im_size_in[0]
         # divide the center by downsampling ratio of the model
         c_x, c_y = round(c_x / down_ratio), round(c_y / down_ratio)
 
@@ -187,7 +189,7 @@ class KittiMOTDataset(data.Dataset):
         for fr in fr_range:
             # extract features for entire image
             im = Image.open(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
-            img_size_in = [im.height, im.width]
+            im_size_in = [im.height, im.width]
 
             if random_transforms_hf:
                 im = im.transpose(Image.FLIP_LEFT_RIGHT)
@@ -227,7 +229,7 @@ class KittiMOTDataset(data.Dataset):
                         appearance = [appearance[x] for i in range(64, 0, -8) for x in range(i-8, i)]
 
                     # learned image features
-                    im_feats.append(self.get_trk_feats(detector_ops['trk_feats'], bbox_2d, img_size_in))
+                    im_feats.append(self.get_trk_feats(detector_ops['trk'], bbox_2d, im_size_in))
 
                     datum.extend(bbox_2d)
                     datum.extend(appearance)
