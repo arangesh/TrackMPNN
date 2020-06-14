@@ -106,7 +106,7 @@ def train(model, epoch):
         epoch_loss_e.append(loss_e.item())
         epoch_loss_c.append(loss_c.item())
         epoch_loss_f.append(loss_f.item())
-        loss = epoch_loss_e + epoch_loss_c + epoch_loss_f
+        loss = loss_e + loss_c + loss_f
         epoch_loss.append(loss.item())
         loss.backward()
         optimizer.step()
