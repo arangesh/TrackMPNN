@@ -143,7 +143,7 @@ class EmbeddingLoss(nn.Module):
             var_loss /= C
 
         # calculate distance term
-        var_loss = torch.tensor(0.0).to(features.device)
+        dist_loss = torch.tensor(0.0).to(features.device)
         if C > 1: # only if multiple clusters exist
             for i in range(C):
                 for j in range(C):
