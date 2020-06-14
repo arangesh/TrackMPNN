@@ -52,6 +52,8 @@ coverage.xml
 
 .idea/
 experiments/
+weights/
+models/dla/DCNv2
 Pipfile.lock
 
 .vscode/
