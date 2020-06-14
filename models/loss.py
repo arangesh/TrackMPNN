@@ -120,10 +120,16 @@ class EmbeddingLoss(nn.Module):
 
     def forward(self, features, labels):
         """
-        features(N, F): Torfch tensor with image features corresponding to each detection
+        features(N, F): Torch tensor with image features corresponding to each detection
         labels(N, 2): Numpy array where each row corresponds to [fr, track_id] for the detection
         """
         cluster_means = []
+        # do not consider false positives
+        tp_ids = labels[:, 1] >= 0
+        features = features[tp_ids, :]
+        labels = labels[tp_ids, :]
+
+        # find unique clusters
         cluster_ids = np.unique(labels[:, 1]).tolist()
         C = len(cluster_ids)
 
