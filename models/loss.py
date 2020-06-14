@@ -80,7 +80,7 @@ class CELoss(nn.Module):
         self.nll = nn.NLLLoss()
 
     def forward(self, outputs, targets, node_adj, idx_node):
-        loss = torch.tensor(0)
+        loss = torch.tensor(0.0)
         idx_node = idx_node.detach().cpu().numpy().astype('int64') # (D,)
         outputs = outputs.view(1, -1) # (1, N)
         targets = targets.view(1, -1) # (1, N)
@@ -134,7 +134,7 @@ class EmbeddingLoss(nn.Module):
         C = len(cluster_ids)
 
         # calculate variance term
-        var_loss = torch.tensor(0)
+        var_loss = torch.tensor(0.0)
         if C > 0:
             for c_id in cluster_ids:
                 cluster_means.append(torch.mean(features[labels[:, 1] == c_id, :], dim=0, keepdim=True))
@@ -143,7 +143,7 @@ class EmbeddingLoss(nn.Module):
             var_loss /= C
 
         # calculate distance term
-        dist_loss = torch.tensor(0)
+        dist_loss = torch.tensor(0.0)
         if C > 1: # only if multiple clusters exist
             for i in range(C):
                 for j in range(C):
