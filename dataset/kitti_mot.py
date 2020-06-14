@@ -8,6 +8,7 @@ import torch
 from torch.utils import data
 import torchvision.transforms as transforms
 
+from models.loss import EmbeddingLoss
 from models.dla.pose_dla_dcn import get_pose_net
 
 
@@ -84,7 +85,7 @@ class KittiMOTDataset(data.Dataset):
         self.random_transforms = random_transforms
         self.cuda = cuda
         self.dropout = 0.2 # probability of a detection being dropped
-        self.im_size = (192, 640) # input image size for feature extraction
+        self.im_size_out = (384, 1280) # input image size for feature extraction
 
         if self.split == 'test':
             self.dataset_path = os.path.join(dataset_root_path, 'testing', 'gcn_features')
@@ -92,6 +93,7 @@ class KittiMOTDataset(data.Dataset):
         else:
             self.dataset_path = os.path.join(dataset_root_path, 'training', 'gcn_features')
             self.im_path = os.path.join(dataset_root_path, 'training', 'image_02')
+            self.embed_loss = EmbeddingLoss()
 
         if self.num_img_feats is not None:
             # initialize detector with necessary heads and pretrained imagenet weights
@@ -102,12 +104,12 @@ class KittiMOTDataset(data.Dataset):
 
         if random_transforms:
             self.image_transforms = transforms.Compose([
-                transforms.Resize(self.im_size),
+                transforms.Resize(self.im_size_out),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
         else: 
             self.image_transforms = transforms.Compose([
-                transforms.Resize(self.im_size),
+                transforms.Resize(self.im_size_out),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
@@ -141,13 +143,16 @@ class KittiMOTDataset(data.Dataset):
         """
         return random.random() < probability
 
-    def get_trk_feats(self, feat_maps, bbox, down_ratio=4):
+    def get_trk_feats(self, feat_maps, bbox, img_size_in, down_ratio=4):
         """
         Extract image features from bbox center location
         """
         # get bbox center
         c_x = (bbox[0] + bbox[2]) / 2.0
         c_y = (bbox[1] + bbox[3]) / 2.0
+        # account for image resizing
+        c_x = (c_x * self.im_size_out[1]) / img_size_in[1]
+        c_y = (c_y * self.im_size_out[0]) / img_size_in[0]
         # divide the center by downsampling ratio of the model
         c_x, c_y = round(c_x / down_ratio), round(c_y / down_ratio)
 
@@ -156,10 +161,10 @@ class KittiMOTDataset(data.Dataset):
             c_x = 0
         if c_y < 0:
             c_y = 0
-        if c_x >= int(self.im_size[1] / down_ratio):
-            c_x = int(self.im_size[1] / down_ratio) - 1
-        if c_y >= int(self.im_size[0] / down_ratio):
-            c_y = int(self.im_size[0] / down_ratio) - 1
+        if c_x >= int(self.im_size_out[1] / down_ratio):
+            c_x = int(self.im_size_out[1] / down_ratio) - 1
+        if c_y >= int(self.im_size_out[0] / down_ratio):
+            c_y = int(self.im_size_out[0] / down_ratio) - 1
 
         # extract features from center
         feat = feat_maps[:, :, c_y, c_x]
@@ -182,6 +187,8 @@ class KittiMOTDataset(data.Dataset):
         for fr in fr_range:
             # extract features for entire image
             im = Image.open(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
+            img_size_in = [im.height, im.width]
+
             if random_transforms_hf:
                 im = im.transpose(Image.FLIP_LEFT_RIGHT)
             im = self.image_transforms(im)
@@ -220,7 +227,7 @@ class KittiMOTDataset(data.Dataset):
                         appearance = [appearance[x] for i in range(64, 0, -8) for x in range(i-8, i)]
 
                     # learned image features
-                    im_feats.append(self.get_trk_feats(detector_ops['trk_feats'], bbox_2d))
+                    im_feats.append(self.get_trk_feats(detector_ops['trk_feats'], bbox_2d, img_size_in))
 
                     datum.extend(bbox_2d)
                     datum.extend(appearance)
@@ -240,10 +247,18 @@ class KittiMOTDataset(data.Dataset):
             features = (np.array(features, dtype='float32') - self.mean) / self.std # normalize/standardize features
             features = features[:, list(range(5)) + list(range(69, features.shape[1]))]
             labels = np.array(labels, dtype='int64')
-        
             features = torch.from_numpy(features)
+            im_feats = torch.cat(im_feats, 0)
+
+            if self.split == 'train':
+                loss = self.embed_loss(im_feats, labels)
+            else:
+                loss = 0
+
             if self.cuda:
                 features = features.cuda()
             # concatenate all features
-            features = torch.cat((features[:, :5], torch.cat(im_feats, 0), features[:, 5:]), 1)
-        return features, labels
+            features = torch.cat((features[:, :5], im_feats, features[:, 5:]), 1)
+            return features, labels, loss
+        else:
+            return features, labels, 0

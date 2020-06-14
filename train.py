@@ -41,7 +41,7 @@ def train(model, epoch):
     epoch_loss, epoch_f1 = list(), list()
     model.train() # set TrackMPNN model to train mode
     train_loader.dataset.detector.train() # set detector to train mode
-    for b_idx, (X_seq, y_seq) in enumerate(train_loader):
+    for b_idx, (X_seq, y_seq, loss) in enumerate(train_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
         if args.cuda:
@@ -61,7 +61,7 @@ def train(model, epoch):
         # calculate targets for CE and BCE(Focal) loss
         targets = create_targets(labels, node_adj, idx_node)
         # calculate CE loss
-        loss = ce_loss(scores, targets, node_adj, idx_node)
+        loss += ce_loss(scores, targets, node_adj, idx_node)
         if args.tp_classifier:
             loss += focal_loss_node(scores[idx_node, 0], targets[idx_node]) + focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
             scores = torch.cat((1 - scores, scores), dim=1)
@@ -143,7 +143,7 @@ def val(model, epoch):
     val_loader.dataset.detector.eval() # set detector model to eval mode
     val_loader.dataset.num_img_feats = train_loader.dataset.num_img_feats # copy over number of image features used for tracking
 
-    for b_idx, (X_seq, y_seq) in enumerate(val_loader):
+    for b_idx, (X_seq, y_seq, _) in enumerate(val_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
         if args.cuda:
