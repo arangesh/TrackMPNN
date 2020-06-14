@@ -135,11 +135,12 @@ class EmbeddingLoss(nn.Module):
 
         # calculate variance term
         var_loss = 0
-        for c_id in cluster_ids:
-            cluster_means.append(torch.mean(features[labels[:, 1] == c_id, :], dim=0, keepdim=True))
-            var_dist = torch.norm(features[labels[:, 1] == c_id, :] - cluster_means[-1], dim=1)
-            var_loss += torch.mean(torch.pow(F.relu(var_dist - self.delta_var), 2))
-        var_loss /= C
+        if C > 0:
+            for c_id in cluster_ids:
+                cluster_means.append(torch.mean(features[labels[:, 1] == c_id, :], dim=0, keepdim=True))
+                var_dist = torch.norm(features[labels[:, 1] == c_id, :] - cluster_means[-1], dim=1)
+                var_loss += torch.mean(torch.pow(F.relu(var_dist - self.delta_var), 2))
+            var_loss /= C
 
         # calculate distance term
         dist_loss = 0
