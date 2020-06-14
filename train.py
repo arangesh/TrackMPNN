@@ -38,10 +38,10 @@ def random_seed(seed_value, use_cuda):
 
 # training function
 def train(model, epoch):
-    epoch_loss, epoch_f1 = list(), list()
+    epoch_loss_e, epoch_loss_c, epoch_loss_f, epoch_loss, epoch_f1 = list(), list(), list(), list(), list()
     model.train() # set TrackMPNN model to train mode
     train_loader.dataset.detector.train() # set detector to train mode
-    for b_idx, (X_seq, y_seq, loss) in enumerate(train_loader):
+    for b_idx, (X_seq, y_seq, loss_e) in enumerate(train_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
         if args.cuda:
@@ -61,13 +61,13 @@ def train(model, epoch):
         # calculate targets for CE and BCE(Focal) loss
         targets = create_targets(labels, node_adj, idx_node)
         # calculate CE loss
-        loss += ce_loss(scores, targets, node_adj, idx_node)
+        loss_c = ce_loss(scores, targets, node_adj, idx_node)
         if args.tp_classifier:
-            loss += focal_loss_node(scores[idx_node, 0], targets[idx_node]) + focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
+            loss_f = focal_loss_node(scores[idx_node, 0], targets[idx_node]) + focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
             scores = torch.cat((1 - scores, scores), dim=1)
             idx = torch.cat((idx_node, idx_edge))
         else:
-            loss += focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
+            loss_f = focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
             scores = torch.cat((1 - scores, scores), dim=1)
             scores[idx_node, 0] = 0
             scores[idx_node, 1] = 1
@@ -88,13 +88,13 @@ def train(model, epoch):
             # calculate targets for CE and BCE(Focal) loss
             targets = create_targets(labels, node_adj, idx_node)
             # calculate CE loss
-            loss += ce_loss(scores, targets, node_adj, idx_node)
+            loss_c += ce_loss(scores, targets, node_adj, idx_node)
             if args.tp_classifier:
-                loss += focal_loss_node(scores[idx_node, 0], targets[idx_node]) + focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
+                loss_f += focal_loss_node(scores[idx_node, 0], targets[idx_node]) + focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
                 scores = torch.cat((1 - scores, scores), dim=1)
                 idx = torch.cat((idx_node, idx_edge))
             else:
-                loss += focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
+                loss_f += focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
                 scores = torch.cat((1 - scores, scores), dim=1)
                 scores[idx_node, 0] = 0
                 scores[idx_node, 1] = 1
@@ -103,6 +103,10 @@ def train(model, epoch):
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
+        epoch_loss_e.append(loss_e.item())
+        epoch_loss_c.append(loss_c.item())
+        epoch_loss_f.append(loss_f.item())
+        loss = epoch_loss_e + epoch_loss_c + epoch_loss_f
         epoch_loss.append(loss.item())
         loss.backward()
         optimizer.step()
@@ -121,15 +125,23 @@ def train(model, epoch):
                 100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
 
     # now that the epoch is completed calculate statistics and store logs
+    avg_loss_e = statistics.mean(epoch_loss_e)
+    avg_loss_c = statistics.mean(epoch_loss_c)
+    avg_loss_f = statistics.mean(epoch_loss_f)
     avg_loss = statistics.mean(epoch_loss)
     avg_f1 = statistics.mean(epoch_f1)
-    print("------------------------\nAverage loss for epoch = {:.2f}".format(avg_loss))
-    f_log.write("------------------------\nAverage loss for epoch = {:.2f}\n".format(avg_loss))
-    
+    print("------------------------\nAverage embedding loss for epoch = {:.2f}".format(avg_loss_e))
+    f_log.write("------------------------\nAverage embedding loss for epoch = {:.2f}\n".format(avg_loss_e))
+    print("Average cross-entropy loss for epoch = {:.2f}".format(avg_loss_c))
+    f_log.write("Average cross-entropy loss for epoch = {:.2f}\n".format(avg_loss_c))
+    print("Average focal loss for epoch = {:.2f}".format(avg_loss_f))
+    f_log.write("Average focal loss for epoch = {:.2f}\n".format(avg_loss_f))
+    print("Average loss for epoch = {:.2f}".format(avg_loss))
+    f_log.write("Average loss for epoch = {:.2f}\n".format(avg_loss))
     print("Average F1 score for epoch = {:.4f}\n------------------------".format(avg_f1))
     f_log.write("Average F1 score for epoch = {:.4f}\n".format(avg_f1))
 
-    return model, avg_loss, avg_f1
+    return model, avg_loss_e, avg_loss_c, avg_loss_f, avg_loss, avg_f1
 
 
 # validation function
@@ -264,7 +276,12 @@ if __name__ == '__main__':
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)
-    train_loss = list()
+    ax1.plot([], 'r', label='Ebmedding loss')
+    ax1.plot([], 'g', label='Cross-entropy loss')
+    ax1.plot([], 'b', label='Focal loss')
+    ax1.plot([], 'k', label='Total loss')
+    ax1.legend()
+    train_loss_e, train_loss_c, train_loss_f, train_loss = list(), list(), list(), list()
 
     fig2, ax2 = plt.subplots()
     plt.grid(True)
@@ -280,12 +297,18 @@ if __name__ == '__main__':
     train_f1, val_f1, val_mota  = list(), list(), list()
 
     for i in range(1, args.epochs + 1):
-        model, avg_loss, avg_f1 = train(model, i)
+        model, avg_loss_e, avg_loss_c, avg_loss_f, avg_loss, avg_f1 = train(model, i)
+        train_loss_e.append(avg_loss_e)
+        train_loss_c.append(avg_loss_c)
+        train_loss_f.append(avg_loss_f)
         train_loss.append(avg_loss)
         train_f1.append(avg_f1)
 
         # plot the loss
-        ax1.plot(train_loss, 'k')
+        ax1.plot(train_loss_e, 'r', label='Ebmedding loss')
+        ax1.plot(train_loss_c, 'g', label='Cross-entropy loss')
+        ax1.plot(train_loss_f, 'b', label='Focal loss')
+        ax1.plot(train_loss, 'k', label='Total loss')
         fig1.savefig(os.path.join(args.output_dir, "train_loss.jpg"))
 
         # clear GPU cahce and free up memory
