@@ -2,22 +2,21 @@ import numpy as np
 import motmetrics as mm
 
 
-def create_mot_accumulator(y_out, X, y):
+def create_mot_accumulator(bbox_pred, bbox_gt, y_out, y_gt):
     """
     This is a function returns an accumulator with tracking predictions and GT stored in it
     
-    y_out [NUM_DETS, 2]: Array of outputs where each row is [ts, track_id]
-    X [B, NUM_DETS, NUM_FEATS]: Features for all detections in a sequence
-    y [B, NUM_DETS, 2]: Array where each row is [ts, track_id]
+    bbox_pred [NUM_DETS_PRED, (x1, y1, x2, y2, score)]: Predicted bboxes in a sequence
+    bbox_gt [NUM_DETS_GT, (x1, y1, x2, y2, 1)]: GT bboxes in a sequence
+    y_out [NUM_DETS_PRED, (frame, track_id)]: Predicted tracks where each row is [ts, track_id]
+    y_gt [NUM_DETS_PRED, (frame, track_id)]: GT tracks where each row is [ts, track_id]
 
     Returns: 
     A MOT accumulator object
     """
-    X = X.squeeze(0).detach().cpu().numpy().astype('float32') # (NUM_DETS, 2)
-    y = y.squeeze(0).detach().cpu().numpy().astype('int64') # (NUM_DETS, 2)
-    if np.all(y_out[:, 1] == -1) or np.all(y[:, 1] == -1):
+    if np.all(y_gt[:, 1] == -1) or np.all(y_out[:, 1] == -1):
         return None
-    times = np.sort(y_out[:, 0])
+    times = np.sort(y_gt[:, 0])
     t_st = times[0]
     t_ed = times[-1]
 
@@ -25,19 +24,19 @@ def create_mot_accumulator(y_out, X, y):
     acc = mm.MOTAccumulator()
 
     for t in range(t_st, t_ed+1):
-        oids = np.where(np.logical_and(y[:, 0] == t, y[:, 1] != -1))[0]
-        otracks = y[oids, 1]
+        oids = np.where(np.logical_and(y_gt[:, 0] == t, y_gt[:, 1] >= 0))[0]
+        otracks = y_gt[oids, 1]
         otracks = otracks.astype('float32')
 
-        hids = np.where(np.logical_and(y_out[:, 0] == t, y_out[:, 1] != -1))[0]
+        hids = np.where(np.logical_and(y_out[:, 0] == t, y_out[:, 1] >= 0))[0]
         htracks = y_out[hids, 1]
         htracks = htracks.astype('float32')
 
-        bboxo = X[oids, 1:5]*np.array([1242, 375, 1242, 375]) + np.array([1242, 375, 1242, 375])/2
+        bboxo = bbox_gt[oids, :4]
         bboxo[:, 2:] = bboxo[:, 2:] - bboxo[:, :2]
-        bboxh = X[hids, 1:5]*np.array([1242, 375, 1242, 375]) + np.array([1242, 375, 1242, 375])/2
+        bboxh = bbox_pred[hids, :4]
         bboxh[:, 2:] = bboxh[:, 2:] - bboxh[:, :2]
-        dists = mm.distances.iou_matrix(bboxo, bboxh, max_iou=1.)
+        dists = mm.distances.iou_matrix(bboxo, bboxh, max_iou=0.5)
 
         acc.update(otracks, htracks, dists, frameid=t)
 

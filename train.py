@@ -21,7 +21,7 @@ from utils.gradients import plot_grad_flow
 kwargs_train = {'batch_size': 1, 'shuffle': True}
 train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.timesteps, args.num_img_feats, args.random_transforms, args.cuda), **kwargs_train)
 kwargs_val = {'batch_size': 1, 'shuffle': False}
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.timesteps, None, False, args.cuda), **kwargs_val)
+val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.timesteps, args.num_img_feats, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
@@ -41,7 +41,7 @@ def train(model, epoch):
     epoch_loss_e, epoch_loss_c, epoch_loss_f, epoch_loss, epoch_f1 = list(), list(), list(), list(), list()
     model.train() # set TrackMPNN model to train mode
     train_loader.dataset.detector.train() # set detector to train mode
-    for b_idx, (X_seq, y_seq, loss_e) in enumerate(train_loader):
+    for b_idx, (X_seq, y_seq, loss_e, _, _) in enumerate(train_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
         if args.cuda:
@@ -155,7 +155,7 @@ def val(model, epoch):
     val_loader.dataset.detector.eval() # set detector model to eval mode
     val_loader.dataset.num_img_feats = train_loader.dataset.num_img_feats # copy over number of image features used for tracking
 
-    for b_idx, (X_seq, y_seq, _) in enumerate(val_loader):
+    for b_idx, (X_seq, y_seq, _, bbox_pred, bbox_gt) in enumerate(val_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
         if args.cuda:
@@ -221,8 +221,12 @@ def val(model, epoch):
                     t_cur - args.timesteps + 2, 10, use_hungraian=args.hungarian, cuda=args.cuda)
             print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t_cur - args.timesteps + 1), t_end))
         print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, t_end, t_end))
+
         # create results accumulator using predictions and GT for evaluation
-        acc = create_mot_accumulator(y_out, X_seq, y_seq)
+        bbox_pred = bbox_pred[0, :, 2:].detach().cpu().numpy().astype('float32')
+        y_gt = bbox_gt[0, :, :2].detach().cpu().numpy().astype('int64')
+        bbox_gt = bbox_gt[0, :, 2:].detach().cpu().numpy().astype('float32')
+        acc = create_mot_accumulator(bbox_pred, bbox_gt, y_out, y_gt)
         if acc is not None:
             accs.append(acc)
 
@@ -276,7 +280,7 @@ if __name__ == '__main__':
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)
-    ax1.plot([], 'r', label='Ebmedding loss')
+    ax1.plot([], 'r', label='Embedding loss')
     ax1.plot([], 'g', label='Cross-entropy loss')
     ax1.plot([], 'b', label='Focal loss')
     ax1.plot([], 'k', label='Total loss')
@@ -295,6 +299,7 @@ if __name__ == '__main__':
     ax3.legend()
 
     train_f1, val_f1, val_mota  = list(), list(), list()
+    f1, mota = val(model, 0)
 
     for i in range(1, args.epochs + 1):
         model, avg_loss_e, avg_loss_c, avg_loss_f, avg_loss, avg_f1 = train(model, i)
@@ -305,7 +310,7 @@ if __name__ == '__main__':
         train_f1.append(avg_f1)
 
         # plot the loss
-        ax1.plot(train_loss_e, 'r', label='Ebmedding loss')
+        ax1.plot(train_loss_e, 'r', label='Embedding loss')
         ax1.plot(train_loss_c, 'g', label='Cross-entropy loss')
         ax1.plot(train_loss_f, 'b', label='Focal loss')
         ax1.plot(train_loss, 'k', label='Total loss')

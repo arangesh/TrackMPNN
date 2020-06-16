@@ -11,7 +11,7 @@ from utils.infer_options import args
 
 
 kwargs_infer = {'batch_size': 1, 'shuffle': False}
-infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.timesteps, None, False, args.cuda), **kwargs_infer)
+infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.timesteps, args.num_img_feats, False, args.cuda), **kwargs_infer)
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
@@ -25,7 +25,7 @@ def random_seed(seed_value, use_cuda):
 def infer(model):
     model.eval()
 
-    for b_idx, (X_seq, y_seq, _) in enumerate(infer_loader):
+    for b_idx, (X_seq, y_seq, _, bbox_pred, _) in enumerate(infer_loader):
         if args.cuda:
             X_seq, y_seq = X_seq.cuda(), y_seq.cuda()
 
@@ -70,7 +70,8 @@ def infer(model):
         print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, t_end, t_end))
 
         # store results in KITTI format
-        store_results_kitti(y_out, X_seq, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
+        bbox_pred = bbox_pred[0, :, 2:].detach().cpu().numpy().astype('float32')
+        store_results_kitti(bbox_pred, y_out, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
         print('Done with sequence {} out {}...\n'.format(b_idx + 1, len(infer_loader.dataset)))
 
     return
