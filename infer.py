@@ -24,7 +24,6 @@ def random_seed(seed_value, use_cuda):
 # inference function
 def infer(model):
     model.eval()
-
     for b_idx, (X_seq, y_seq, _, bbox_pred, _) in enumerate(infer_loader):
         if args.cuda:
             X_seq, y_seq = X_seq.cuda(), y_seq.cuda()

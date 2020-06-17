@@ -386,7 +386,6 @@ class IDAUp(nn.Module):
             layers[i] = node(layers[i] + layers[i - 1])
 
 
-
 class DLAUp(nn.Module):
     def __init__(self, startp, channels, scales, in_channels=None):
         super(DLAUp, self).__init__()
@@ -490,4 +489,3 @@ def get_pose_net(num_layers, heads, head_conv=256, down_ratio=4):
                  last_level=5,
                  head_conv=head_conv)
   return model
-

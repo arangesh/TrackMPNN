@@ -40,7 +40,8 @@ def random_seed(seed_value, use_cuda):
 def train(model, epoch):
     epoch_loss_e, epoch_loss_c, epoch_loss_f, epoch_loss, epoch_f1 = list(), list(), list(), list(), list()
     model.train() # set TrackMPNN model to train mode
-    train_loader.dataset.detector.train() # set detector to train mode
+    train_loader.dataset.detector.model.train() # set detector to train mode
+    train_loader.dataset.detector.opt.split = 'train' # set split to train
     for b_idx, (X_seq, y_seq, loss_e, _, _) in enumerate(train_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
             continue
@@ -113,7 +114,7 @@ def train(model, epoch):
 
         # save gradient flow image through detector and tracker model
         if (b_idx % 100 == 0) and args.plot_gradients:
-            plot_grad_flow([train_loader.dataset.detector.named_parameters(), model.named_parameters()], 
+            plot_grad_flow([train_loader.dataset.detector.model.named_parameters(), model.named_parameters()], 
                 os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
 
         if b_idx % args.log_schedule == 0:
@@ -152,8 +153,8 @@ def val(model, epoch):
     model.eval() # set TrackMPNN model to eval mode
     val_loader.dataset.detector = train_loader.dataset.detector # use trained detector for the val loader
     train_loader.dataset.detector = None # set trained detector to None to save memory
-    val_loader.dataset.detector.eval() # set detector model to eval mode
-    val_loader.dataset.num_img_feats = train_loader.dataset.num_img_feats # copy over number of image features used for tracking
+    val_loader.dataset.detector.model.eval() # set detector model to eval mode
+    val_loader.dataset.detector.opt.split = 'val' # set split to val
 
     for b_idx, (X_seq, y_seq, _, bbox_pred, bbox_gt) in enumerate(val_loader):
         if type(X_seq) == type([]) or type(y_seq) == type([]):
@@ -249,7 +250,7 @@ def val(model, epoch):
         best_mota = val_mota
         # save the TrackMPNN model and the detector
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
-        torch.save(val_loader.dataset.detector.state_dict(), os.path.join(args.output_dir, 'dla-detector_' + '%.4d' % (epoch,) + '.pth'))
+        torch.save(val_loader.dataset.detector.model.state_dict(), os.path.join(args.output_dir, 'dla-detector_' + '%.4d' % (epoch,) + '.pth'))
 
     train_loader.dataset.detector = val_loader.dataset.detector # copy back the trained detector from the val loader
     val_loader.dataset.detector = None # set detector from val loader to None to save memory
@@ -268,10 +269,9 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
         model.cuda()
-        train_loader.dataset.detector.cuda()
     print(model)
 
-    optimizer = optim.Adam(list(model.parameters()) + list(train_loader.dataset.detector.parameters()), lr=args.learning_rate, weight_decay=args.weight_decay)
+    optimizer = optim.Adam(list(model.parameters()) + list(train_loader.dataset.detector.model.parameters()), lr=args.learning_rate, weight_decay=args.weight_decay)
     # BCE(Focal) loss applied to each node/edge individually
     focal_loss_node = FocalLoss(gamma=0, alpha=None, size_average=True)
     focal_loss_edge = FocalLoss(gamma=0, alpha=None, size_average=True)
@@ -299,7 +299,6 @@ if __name__ == '__main__':
     ax3.legend()
 
     train_f1, val_f1, val_mota  = list(), list(), list()
-    f1, mota = val(model, 0)
 
     for i in range(1, args.epochs + 1):
         model, avg_loss_e, avg_loss_c, avg_loss_f, avg_loss, avg_f1 = train(model, i)

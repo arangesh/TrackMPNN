@@ -2,14 +2,14 @@ import os
 import json
 import random
 import numpy as np
-from PIL import Image
+import cv2
 
 import torch
 from torch.utils import data
 import torchvision.transforms as transforms
 
 from models.loss import EmbeddingLoss
-from models.dla.model import create_model, load_model
+from models.dla.ddd import DddDetector
 
 
 def get_tracking_data(feature_path, split, timesteps):
@@ -145,7 +145,6 @@ class KittiMOTDataset(data.Dataset):
         self.random_transforms = random_transforms
         self.cuda = cuda
         self.dropout_ratio = 0.2 # probability of a detection being dropped
-        self.im_size_out = (384, 1280) # input image size for feature extraction
 
         if self.split == 'test':
             self.feature_path = os.path.join(dataset_root_path, 'testing', 'gcn_features')
@@ -155,22 +154,18 @@ class KittiMOTDataset(data.Dataset):
             self.feature_path = os.path.join(dataset_root_path, 'training', 'gcn_features')
             self.im_path = os.path.join(dataset_root_path, 'training', 'image_02')
             self.label_path = os.path.join(dataset_root_path, 'training', 'label_02')
-            self.embed_loss = EmbeddingLoss()
 
         if self.split == 'train':
-            # initialize detector with necessary heads and pretrained weights
-            # object classes = ['Pedestrian', 'Car', 'Cyclist']
-            heads = {'hm': 3, 'wh':2, 'reg':2, 'dep': 1, 'rot': 8, 'dim': 3, 'trk': self.num_img_feats}
-            self.detector = create_model(34, heads, 256)
-            self.detector = load_model(self.detector, os.path.join('.', 'weights', 'model_last_kitti.pth'))
-            self.detector = self.convert_to_tensor(self.detector)
-        else:
-            self.detector = None
+            self.embed_loss = EmbeddingLoss()
 
-        self.image_transforms = transforms.Compose([
-            transforms.Resize(self.im_size_out),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+        # initialize detector with necessary heads and pretrained weights
+        if self.split == 'train':
+            self.detector = DddDetector(self.cuda, 'train', num_img_feats=num_img_feats, dataset='kitti')
+        elif self.split == 'val':
+            # do not initialize a second detector for val (will use the same one as train)
+            self.detector = None
+        elif self.split == 'test':
+            self.detector = DddDetector(self.cuda, 'test', num_img_feats=num_img_feats, dataset='kitti')
 
         # get tracking batch information 
         self.chunks = get_tracking_data(self.feature_path, self.split, self.timesteps)
@@ -220,20 +215,11 @@ class KittiMOTDataset(data.Dataset):
         c_x = (bbox[0] + bbox[2]) / 2.0
         c_y = (bbox[1] + bbox[3]) / 2.0
         # account for image resizing
-        c_x = (c_x * self.im_size_out[1]) / im_size_in[1]
-        c_y = (c_y * self.im_size_out[0]) / im_size_in[0]
+        c_x = (c_x * self.detector.opt.input_w) / im_size_in[1]
+        c_y = (c_y * self.detector.opt.input_h) / im_size_in[0]
         # divide the center by downsampling ratio of the model
-        c_x, c_y = round(c_x / self.down_ratio), round(c_y / self.down_ratio)
-
-        # ensure center is within the feature map
-        if c_x < 0:
-            c_x = 0
-        if c_y < 0:
-            c_y = 0
-        if c_x >= int(self.im_size_out[1] / self.down_ratio):
-            c_x = int(self.im_size_out[1] / self.down_ratio) - 1
-        if c_y >= int(self.im_size_out[0] / self.down_ratio):
-            c_y = int(self.im_size_out[0] / self.down_ratio) - 1
+        c_x = round(c_x / self.detector.opt.down_ratio)
+        c_y = round(c_y / self.detector.opt.down_ratio)
 
         # extract features from center
         feat = feat_maps[:, :, c_y, c_x]
@@ -263,17 +249,15 @@ class KittiMOTDataset(data.Dataset):
                 bbox_gt[:, 3], bbox_gt[:, 4], bbox_gt[:, 5], bbox_gt[:, 6]), axis=-1)
 
         for fr in fr_range:
-            # load and preprocess image
-            im = Image.open(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
-            im_size_in = [im.height, im.width]
-            im = self.convert_to_tensor(self.image_transforms(im))
+            # load image
+            im = cv2.imread(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
+            im_size_in = (im.shape[0], im.shape[1])
 
             # run forward pass through detector
-            if self.split == 'train':
-                detector_ops = self.detector(im.unsqueeze(0))[-1]
-            else:
-                with torch.no_grad(): # necessary to prevent gradient computation
-                    detector_ops = self.detector(im.unsqueeze(0))[-1]
+            detector_ops = self.detector.run(im)
+            # object classes = {1: 'Pedestrian', 2: 'Car', 3: 'Cyclist'}
+            # [num_dets, (alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score)]
+            bboxes = detector_ops['results'][2]
 
             # get tracking features for each detection
             with open(os.path.join(self.feature_path, input_info[0], '%.6d.json' % (fr,))) as json_file:
@@ -292,7 +276,7 @@ class KittiMOTDataset(data.Dataset):
                     score = [data['score'][d]]
                     bbox_2d = data['bbox_2d'][d]
                     convex_hull_3d = data['convex_hull_3d'][d]
-                    im_feats = self.get_trk_feats(detector_ops['trk'], bbox_2d, im_size_in)
+                    im_feats = self.get_trk_feats(detector_ops['outputs']['trk'], bbox_2d, im_size_in)
 
                     # random horizontal flip
                     if random_transforms_hf:
