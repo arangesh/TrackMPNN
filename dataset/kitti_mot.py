@@ -13,7 +13,7 @@ from models.loss import EmbeddingLoss
 from models.dla.ddd import DddDetector
 
 
-def store_results_kitti(bbox_pred, y_out, output_path):
+def store_kitti_results(bbox_pred, y_out, output_path):
     """
     This is a function that writes the result for the given sequence in KITTI format
     
@@ -321,15 +321,12 @@ class KittiMOTDataset(data.Dataset):
         # (num_dets, 5 + 7 + num_img_feats)
         features = torch.cat((two_d_feats, three_d_feats, im_feats), 1)
 
-        # labels to train tracker
-        labels = bbox_pred[:, :2].astype('int64')
-
         if features.size()[0] != 0 and len(labels) != 0:
             features = (features - self.mean) / self.std # normalize/standardize features
             if self.split == 'train':
-                loss = self.embed_loss(features[:, :self.num_img_feats], labels)
+                loss = self.embed_loss(features[:, :self.num_img_feats], bbox_pred[:, :2].astype('int64'))
             else:
                 loss = self.convert_to_tensor(torch.tensor(0.0))
         else:
             loss = self.convert_to_tensor(torch.tensor(0.0))
-        return features, labels, loss, bbox_pred, bbox_gt
+        return features, bbox_pred, bbox_gt, loss

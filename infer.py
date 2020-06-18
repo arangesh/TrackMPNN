@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 
 from models.track_mpnn import TrackMPNN
-from dataset.kitti_mot import KittiMOTDataset, store_results_kitti
+from dataset.kitti_mot import KittiMOTDataset, store_kitti_results
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.infer_options import args
 
@@ -24,9 +24,8 @@ def random_seed(seed_value, use_cuda):
 # inference function
 def infer(model):
     model.eval()
-    for b_idx, (X_seq, y_seq, _, bbox_pred, _) in enumerate(infer_loader):
-        if args.cuda:
-            X_seq, y_seq = X_seq.cuda(), y_seq.cuda()
+    for b_idx, (X_seq, bbox_pred, _, _) in enumerate(infer_loader):
+        y_seq = bbox_pred[:, :, :2]
 
         # initaialize output array tracks to -1s
         y_out = y_seq.squeeze(0).detach().cpu().numpy().astype('int64')
@@ -70,7 +69,7 @@ def infer(model):
 
         # store results in KITTI format
         bbox_pred = bbox_pred[0, :, 2:].detach().cpu().numpy().astype('float32')
-        store_results_kitti(bbox_pred, y_out, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
+        store_kitti_results(bbox_pred, y_out, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
         print('Done with sequence {} out {}...\n'.format(b_idx + 1, len(infer_loader.dataset)))
 
     return
@@ -81,7 +80,7 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeatures=1 + 4 + args.num_img_feats + 10 - 10 + 64, nhidden=args.num_hidden_feats, msg_type=args.msg_type)
+    model = TrackMPNN(nfeatures=5 + 7 + args.num_img_feats, nhidden=args.num_hidden_feats, msg_type=args.msg_type)
     model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
         model.cuda()

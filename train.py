@@ -42,11 +42,11 @@ def train(model, epoch):
     model.train() # set TrackMPNN model to train mode
     train_loader.dataset.detector.model.train() # set detector to train mode
     train_loader.dataset.detector.opt.split = 'train' # set split to train
-    for b_idx, (X_seq, y_seq, loss_e, _, _) in enumerate(train_loader):
-        if type(X_seq) == type([]) or type(y_seq) == type([]):
+    for b_idx, (X_seq, bbox_pred, _, loss_e) in enumerate(train_loader):
+        # if no detections in sequence
+        if X_seq.size()[1] == 0:
             continue
-        if args.cuda:
-            X_seq, y_seq = X_seq.cuda(), y_seq.cuda()
+        y_seq = bbox_pred[:, :, :2]
 
         # train the network
         optimizer.zero_grad()
@@ -156,11 +156,11 @@ def val(model, epoch):
     val_loader.dataset.detector.model.eval() # set detector model to eval mode
     val_loader.dataset.detector.opt.split = 'val' # set split to val
 
-    for b_idx, (X_seq, y_seq, _, bbox_pred, bbox_gt) in enumerate(val_loader):
-        if type(X_seq) == type([]) or type(y_seq) == type([]):
+    for b_idx, (X_seq, bbox_pred, bbox_gt, _) in enumerate(val_loader):
+        # if no detections in sequence
+        if X_seq.size()[1] == 0:
             continue
-        if args.cuda:
-            X_seq, y_seq = X_seq.cuda(), y_seq.cuda()
+        y_seq = bbox_pred[:, :, :2]
 
         # initaialize output array tracks to -1s
         y_out = y_seq.squeeze(0).detach().cpu().numpy().astype('int64')
