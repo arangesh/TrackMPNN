@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def vectorized_iou(boxes1, boxes2):
+def vectorized_iou(bboxes1, bboxes2):
     x11, y11, x12, y12 = np.split(bboxes1, 4, axis=1)
     x21, y21, x22, y22 = np.split(bboxes2, 4, axis=1)
 

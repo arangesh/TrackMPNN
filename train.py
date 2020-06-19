@@ -19,9 +19,9 @@ from utils.gradients import plot_grad_flow
 
 
 kwargs_train = {'batch_size': 1, 'shuffle': True}
-train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.timesteps, args.num_img_feats, args.random_transforms, args.cuda), **kwargs_train)
+train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.timesteps, args.num_img_feats, args.random_transforms, args.cuda), **kwargs_train)
 kwargs_val = {'batch_size': 1, 'shuffle': False}
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.timesteps, args.num_img_feats, False, args.cuda), **kwargs_val)
+val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.timesteps, args.num_img_feats, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
@@ -45,6 +45,7 @@ def train(model, epoch):
     for b_idx, (X_seq, bbox_pred, _, loss_e) in enumerate(train_loader):
         # if no detections in sequence
         if X_seq.size()[1] == 0:
+            print('No detections available for sequence...')
             continue
         y_seq = bbox_pred[:, :, :2]
 
@@ -159,6 +160,7 @@ def val(model, epoch):
     for b_idx, (X_seq, bbox_pred, bbox_gt, _) in enumerate(val_loader):
         # if no detections in sequence
         if X_seq.size()[1] == 0:
+            print('No detections available for sequence...')
             continue
         y_seq = bbox_pred[:, :, :2]
 
