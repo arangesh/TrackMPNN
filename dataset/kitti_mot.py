@@ -344,7 +344,6 @@ class KittiMOTDataset(data.Dataset):
         im_feats = torch.cat(im_feats, 0)
         # (num_dets, 5 + 7 + num_img_feats)
         features = torch.cat((two_d_feats, three_d_feats, im_feats), 1)
-        print(features.size())
 
         if features.size()[0] != 0:
             features = (features - self.mean) / self.std # normalize/standardize features

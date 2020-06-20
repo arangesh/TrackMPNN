@@ -13,7 +13,7 @@ from models.track_mpnn import TrackMPNN
 from models.loss import create_targets, FocalLoss, CELoss
 from dataset.kitti_mot import KittiMOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
-from utils.metrics import create_mot_accumulator, calc_mot_metrics
+from utils.metrics import create_mot_accumulator, calc_mot_metrics, compute_map
 from utils.training_options import args
 from utils.gradients import plot_grad_flow
 
@@ -50,7 +50,8 @@ def train(model, epoch):
         y_seq = bbox_pred[:, :, :2]
 
         # train the network
-        optimizer.zero_grad()
+        optimizer_det.zero_grad()
+        optimizer_trk.zero_grad()
 
         # intialize graph and run first forward pass
         y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, mode='train', cuda=args.cuda)
@@ -111,7 +112,8 @@ def train(model, epoch):
         loss = loss_e + loss_c + loss_f
         epoch_loss.append(loss.item())
         loss.backward()
-        optimizer.step()
+        optimizer_det.step()
+        optimizer_trk.step()
 
         # save gradient flow image through detector and tracker model
         if (b_idx % 100 == 0) and args.plot_gradients:
@@ -157,6 +159,7 @@ def val(model, epoch):
     val_loader.dataset.detector.model.eval() # set detector model to eval mode
     val_loader.dataset.detector.opt.split = 'val' # set split to val
 
+    bbox_pred_dict, bbox_gt_dict = {}, {} # initialize dictionaries for computing mAP
     for b_idx, (X_seq, bbox_pred, bbox_gt, _) in enumerate(val_loader):
         # if no detections in sequence
         if X_seq.size()[1] == 0:
@@ -232,20 +235,28 @@ def val(model, epoch):
         acc = create_mot_accumulator(bbox_pred, bbox_gt, y_out, y_gt)
         if acc is not None:
             accs.append(acc)
+        # store values for computing mAP
+        bbox_pred_dict[str(b_idx)] = (y_out, bbox_pred)
+        bbox_gt_dict[str(b_idx)] = (y_gt, bbox_gt)
 
         print('Done with sequence {} of {}...'.format(b_idx + 1, len(val_loader.dataset)))
 
+    # Calculate F1-score
+    val_f1 = statistics.mean(epoch_f1)
+    # Calculate MOTA
     if len(accs) > 0:
-        mota = calc_mot_metrics(accs)['mota']
+        val_mota = 100.0 * calc_mot_metrics(accs)['mota']
     else:
         mota = -1
+    # Calculate mAP
+    val_map = 100.0 * compute_map(bbox_pred_dict, bbox_gt_dict)
 
-    val_f1 = statistics.mean(epoch_f1)
-    val_mota = 100.0 * mota
     print("------------------------\nValidation F1 score = {:.4f}".format(val_f1))
-    print("Validation MOTA = {:.2f}%\n------------------------".format(val_mota))
+    print("Validation MOTA = {:.2f}%".format(val_mota))
+    print("Validation mAP = {:.2f}%\n------------------------".format(val_map))
     f_log.write("\nValidation F1 score = {:.4f}\n".format(val_f1))
-    f_log.write("Validation MOTA = {:.2f}%\n------------------------\n\n".format(val_mota))
+    f_log.write("Validation MOTA = {:.2f}%\n".format(val_mota))
+    f_log.write("Validation mAP = {:.2f}%\n------------------------\n\n".format(val_map))
 
     # now save the model if it has better MOTA than the best model seen so forward
     if val_mota > best_mota:
@@ -257,7 +268,7 @@ def val(model, epoch):
     train_loader.dataset.detector = val_loader.dataset.detector # copy back the trained detector from the val loader
     val_loader.dataset.detector = None # set detector from val loader to None to save memory
 
-    return val_f1, val_mota
+    return val_f1, val_mota, val_map
 
 
 if __name__ == '__main__':
@@ -273,7 +284,11 @@ if __name__ == '__main__':
         model.cuda()
     print(model)
 
-    optimizer = optim.Adam(list(model.parameters()) + list(train_loader.dataset.detector.model.parameters()), lr=args.learning_rate, weight_decay=args.weight_decay)
+    # optimizer for detector
+    optimizer_det = optim.Adam(train_loader.dataset.detector.model.parameters(), lr=0.0, weight_decay=args.weight_decay)
+    # optimizer for tracker
+    optimizer_trk = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+
     # BCE(Focal) loss applied to each node/edge individually
     focal_loss_node = FocalLoss(gamma=0, alpha=None, size_average=True)
     focal_loss_edge = FocalLoss(gamma=0, alpha=None, size_average=True)
@@ -298,9 +313,10 @@ if __name__ == '__main__':
     fig3, ax3 = plt.subplots()
     plt.grid(True)
     ax3.plot([], 'b', label='Validation MOTA')
+    ax3.plot([], 'r', label='Validation mAP')
     ax3.legend()
 
-    train_f1, val_f1, val_mota  = list(), list(), list()
+    train_f1, val_f1, val_mota, val_map  = list(), list(), list(), list()
 
     for i in range(1, args.epochs + 1):
         model, avg_loss_e, avg_loss_c, avg_loss_f, avg_loss, avg_f1 = train(model, i)
@@ -321,9 +337,10 @@ if __name__ == '__main__':
         torch.cuda.empty_cache()
 
         # plot the train and val F1 scores and MOTAs
-        f1, mota = val(model, i)
+        f1, mota, mAP = val(model, i)
         val_f1.append(f1)
         val_mota.append(mota)
+        val_map.append(mAP)
 
         # clear GPU cahce and free up memory
         torch.cuda.empty_cache()
@@ -333,7 +350,8 @@ if __name__ == '__main__':
         fig2.savefig(os.path.join(args.output_dir, 'train_val_f1.jpg'))
 
         ax3.plot(val_mota, 'b', label='Validation MOTA')
-        fig3.savefig(os.path.join(args.output_dir, 'val_mota.jpg'))
+        ax3.plot(val_map, 'r', label='Validation mAP')
+        fig3.savefig(os.path.join(args.output_dir, 'val_mota+map.jpg'))
 
     plt.close('all')
     f_log.close()
