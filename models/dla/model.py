@@ -1,11 +1,11 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import os
 
 import torchvision.models as models
 import torch
 import torch.nn as nn
-import os
 
 from .pose_dla_dcn import get_pose_net as get_dla_dcn
 

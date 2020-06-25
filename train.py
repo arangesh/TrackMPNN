@@ -38,11 +38,11 @@ def random_seed(seed_value, use_cuda):
 
 # training function
 def train(model, epoch):
-    epoch_loss_e, epoch_loss_c, epoch_loss_f, epoch_loss, epoch_f1 = list(), list(), list(), list(), list()
+    epoch_loss_d, epoch_loss_c, epoch_loss_f, epoch_loss, epoch_f1 = list(), list(), list(), list(), list()
     model.train() # set TrackMPNN model to train mode
     train_loader.dataset.detector.model.train() # set detector to train mode
     train_loader.dataset.detector.opt.split = 'train' # set split to train
-    for b_idx, (X_seq, bbox_pred, _, loss_e) in enumerate(train_loader):
+    for b_idx, (X_seq, bbox_pred, _, loss_d) in enumerate(train_loader):
         # if no detections in sequence
         if X_seq.size()[1] == 0:
             print('No detections available for sequence...')
@@ -50,7 +50,6 @@ def train(model, epoch):
         y_seq = bbox_pred[:, :, :2]
 
         # train the network
-        optimizer_det.zero_grad()
         optimizer_trk.zero_grad()
 
         # intialize graph and run first forward pass
@@ -106,13 +105,13 @@ def train(model, epoch):
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
             epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
 
-        epoch_loss_e.append(loss_e.item())
+        epoch_loss_d.append(loss_d.item())
         epoch_loss_c.append(loss_c.item())
         epoch_loss_f.append(loss_f.item())
-        loss = loss_e + loss_c + loss_f
+        loss = loss_d + loss_c + loss_f
         epoch_loss.append(loss.item())
         loss.backward()
-        optimizer_det.step()
+        train_loader.dataset.optimizer.step()
         optimizer_trk.step()
 
         # save gradient flow image through detector and tracker model
@@ -129,13 +128,13 @@ def train(model, epoch):
                 100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
 
     # now that the epoch is completed calculate statistics and store logs
-    avg_loss_e = statistics.mean(epoch_loss_e)
+    avg_loss_d = statistics.mean(epoch_loss_d)
     avg_loss_c = statistics.mean(epoch_loss_c)
     avg_loss_f = statistics.mean(epoch_loss_f)
     avg_loss = statistics.mean(epoch_loss)
     avg_f1 = statistics.mean(epoch_f1)
-    print("------------------------\nAverage embedding loss for epoch = {:.2f}".format(avg_loss_e))
-    f_log.write("------------------------\nAverage embedding loss for epoch = {:.2f}\n".format(avg_loss_e))
+    print("------------------------\nAverage detector loss for epoch = {:.2f}".format(avg_loss_d))
+    f_log.write("------------------------\nAverage detector loss for epoch = {:.2f}\n".format(avg_loss_d))
     print("Average cross-entropy loss for epoch = {:.2f}".format(avg_loss_c))
     f_log.write("Average cross-entropy loss for epoch = {:.2f}\n".format(avg_loss_c))
     print("Average focal loss for epoch = {:.2f}".format(avg_loss_f))
@@ -145,7 +144,7 @@ def train(model, epoch):
     print("Average F1 score for epoch = {:.4f}\n------------------------".format(avg_f1))
     f_log.write("Average F1 score for epoch = {:.4f}\n".format(avg_f1))
 
-    return model, avg_loss_e, avg_loss_c, avg_loss_f, avg_loss, avg_f1
+    return model, avg_loss_d, avg_loss_c, avg_loss_f, avg_loss, avg_f1
 
 
 # validation function
@@ -284,8 +283,6 @@ if __name__ == '__main__':
         model.cuda()
     print(model)
 
-    # optimizer for detector
-    optimizer_det = optim.Adam(train_loader.dataset.detector.model.parameters(), lr=0.0, weight_decay=args.weight_decay)
     # optimizer for tracker
     optimizer_trk = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
@@ -297,12 +294,12 @@ if __name__ == '__main__':
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)
-    ax1.plot([], 'r', label='Embedding loss')
+    ax1.plot([], 'r', label='Detector loss')
     ax1.plot([], 'g', label='Cross-entropy loss')
     ax1.plot([], 'b', label='Focal loss')
     ax1.plot([], 'k', label='Total loss')
     ax1.legend()
-    train_loss_e, train_loss_c, train_loss_f, train_loss = list(), list(), list(), list()
+    train_loss_d, train_loss_c, train_loss_f, train_loss = list(), list(), list(), list()
 
     fig2, ax2 = plt.subplots()
     plt.grid(True)
@@ -319,15 +316,15 @@ if __name__ == '__main__':
     train_f1, val_f1, val_mota, val_map  = list(), list(), list(), list()
 
     for i in range(1, args.epochs + 1):
-        model, avg_loss_e, avg_loss_c, avg_loss_f, avg_loss, avg_f1 = train(model, i)
-        train_loss_e.append(avg_loss_e)
+        model, avg_loss_d, avg_loss_c, avg_loss_f, avg_loss, avg_f1 = train(model, i)
+        train_loss_d.append(avg_loss_d)
         train_loss_c.append(avg_loss_c)
         train_loss_f.append(avg_loss_f)
         train_loss.append(avg_loss)
         train_f1.append(avg_f1)
 
         # plot the loss
-        ax1.plot(train_loss_e, 'r', label='Embedding loss')
+        ax1.plot(train_loss_d, 'r', label='Detector loss')
         ax1.plot(train_loss_c, 'g', label='Cross-entropy loss')
         ax1.plot(train_loss_f, 'b', label='Focal loss')
         ax1.plot(train_loss, 'k', label='Total loss')

@@ -74,6 +74,15 @@ class DddDetector(object):
         opt_dict['debug'] = 0
         opt_dict['debugger_theme'] = 'white'
 
+        opt_dict['mse_loss'] = False
+        opt_dict['hm_weight'] = 1.0
+        opt_dict['dep_weight'] = 1.0
+        opt_dict['dim_weight'] = 1.0
+        opt_dict['rot_weight'] = 1.0
+        opt_dict['wh_weight'] = 0.1
+        opt_dict['off_weight'] = 1.0
+        opt_dict['rect_mask'] = False
+
         return SimpleNamespace(**opt_dict)
 
     def pre_process(self, image, scale, calib=None):
@@ -104,11 +113,13 @@ class DddDetector(object):
     def process(self, images, return_time=False):
         if self.opt.split == 'train':
             outputs = self.model(images)[-1]
-            outputs['hm'] = outputs['hm'].sigmoid_()
-            outputs['dep'] = 1. / (outputs['dep'].sigmoid() + 1e-6) - 1.
             wh = outputs['wh'] if self.opt.reg_bbox else None
             reg = outputs['reg'] if self.opt.reg_offset else None
             forward_time = time.time()
+            with torch.no_grad():
+                dets = ddd_decode(outputs['hm'].sigmoid(), outputs['rot'], 
+                                    1. / (outputs['dep'].sigmoid() + 1e-6) - 1., 
+                                    outputs['dim'], wh=wh, reg=reg, K=self.opt.K)
         else:
             with torch.no_grad():
                 outputs = self.model(images)[-1]
@@ -117,9 +128,8 @@ class DddDetector(object):
                 wh = outputs['wh'] if self.opt.reg_bbox else None
                 reg = outputs['reg'] if self.opt.reg_offset else None
                 forward_time = time.time()
-          
-        dets = ddd_decode(outputs['hm'], outputs['rot'], outputs['dep'], 
-                        outputs['dim'], wh=wh, reg=reg, K=self.opt.K)
+                dets = ddd_decode(outputs['hm'], outputs['rot'], outputs['dep'], 
+                                outputs['dim'], wh=wh, reg=reg, K=self.opt.K)
         if return_time:
             return outputs, dets, forward_time
         else:

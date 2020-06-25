@@ -2,14 +2,14 @@ import torch
 import torch.nn as nn
 import torchvision
 
-from models.pointnet.model import PointNetfeatsmall
+#from models.pointnet.model import PointNetfeatsmall
 from models.layers import FactorGraphGRU
 
 
 class TrackMPNN(nn.Module):
     def __init__(self, nfeatures, nhidden, msg_type):
         super(TrackMPNN, self).__init__()
-        self.pointnet = PointNetfeatsmall()
+        #self.pointnet = PointNetfeatsmall()
 
         self.input_transform_1 = nn.Linear(nfeatures, nhidden, bias=True)
         self.input_transform_1.weight.data.normal_(mean=0.0, std=0.01)
@@ -36,16 +36,16 @@ class TrackMPNN(nn.Module):
         I_edge = torch.diag(torch.diag(edge_adj.to_dense())).to_sparse() # (N', N')
 
         if x.size()[0] > 0:
-            nhullfeats = 10
-            nhullpts = int(nhullfeats / 2)
-            conv_hull =  x[:, -nhullfeats:] # (N'-N, nhullfeats)
-            if next(self.parameters()).is_cuda:
-                conv_hull = torch.cat((conv_hull.view(-1, 2, nhullpts), torch.zeros(conv_hull.size()[0], 1, nhullpts).cuda()), dim=1) # (N'-N, 3, nhullpts)
-            else:
-                conv_hull = torch.cat((conv_hull.view(-1, 2, nhullpts), torch.zeros(conv_hull.size()[0], 1, nhullpts)), dim=1) # (N'-N, 3, nhullpts)
+            #nhullfeats = 10
+            #nhullpts = int(nhullfeats / 2)
+            #conv_hull =  x[:, -nhullfeats:] # (N'-N, nhullfeats)
+            #if next(self.parameters()).is_cuda:
+            #    conv_hull = torch.cat((conv_hull.view(-1, 2, nhullpts), torch.zeros(conv_hull.size()[0], 1, nhullpts).cuda()), dim=1) # (N'-N, 3, nhullpts)
+            #else:
+            #    conv_hull = torch.cat((conv_hull.view(-1, 2, nhullpts), torch.zeros(conv_hull.size()[0], 1, nhullpts)), dim=1) # (N'-N, 3, nhullpts)
 
-            conv_hull_feat, _, _ = self.pointnet(conv_hull) # (N'-N, 64)
-            x = torch.cat((x[:, :-nhullfeats], conv_hull_feat), dim=1) # (N'-N, nfeatures)
+            #conv_hull_feat, _, _ = self.pointnet(conv_hull) # (N'-N, 64)
+            #x = torch.cat((x[:, :-nhullfeats], conv_hull_feat), dim=1) # (N'-N, nfeatures)
             x = self.input_transform(x) # (N'-N, nhidden)
 
             h_update = torch.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhidden)
