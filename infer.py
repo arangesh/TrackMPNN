@@ -11,7 +11,9 @@ from utils.infer_options import args
 
 
 kwargs_infer = {'batch_size': 1, 'shuffle': False}
-infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.category, args.timesteps, args.num_img_feats, False, args.cuda), **kwargs_infer)
+det_snapshot = os.path.join(os.path.dirname(args.snapshot), 'dla-detector_' + args.snapshot[-8:])
+infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.category, args.timesteps, 
+                args.num_img_feats, det_snapshot, False, args.cuda), **kwargs_infer)
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)

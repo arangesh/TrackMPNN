@@ -62,7 +62,7 @@ def store_kitti_results(bbox_pred, y_out, class_dict, output_path):
 
 
 class KittiMOTDataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', cat='Car', timesteps=5, num_img_feats=4, random_transforms=False, cuda=True):
+    def __init__(self, dataset_root_path=None, split='train', cat='Car', timesteps=5, num_img_feats=4, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -74,6 +74,7 @@ class KittiMOTDataset(data.Dataset):
         self.cat = cat
         self.timesteps = timesteps
         self.num_img_feats = num_img_feats # number of image based features to be used for tracking
+        self.snapshot = snapshot
         self.random_transforms = random_transforms
         self.cuda = cuda
         self.dropout_ratio = 0.2 # probability of a detection being dropped
@@ -87,7 +88,7 @@ class KittiMOTDataset(data.Dataset):
 
         # initialize detector with necessary heads and pretrained weights
         if self.split == 'train':
-            self.detector = DddDetector(self.cuda, 'train', num_img_feats=num_img_feats, dataset='kitti')
+            self.detector = DddDetector(self.snapshot, self.cuda, 'train', num_img_feats=num_img_feats, dataset='kitti')
             self.det_loss = DddLoss(self.detector.opt)
             self.embed_loss = EmbeddingLoss()
             # optimizer for detector
@@ -96,7 +97,7 @@ class KittiMOTDataset(data.Dataset):
             # do not initialize a second detector for val (will use the same one as train)
             self.detector = None
         elif self.split == 'test':
-            self.detector = DddDetector(self.cuda, 'test', num_img_feats=num_img_feats, dataset='kitti')
+            self.detector = DddDetector(self.snapshot, self.cuda, 'test', num_img_feats=num_img_feats, dataset='kitti')
 
         # get tracking batch information 
         self.chunks = self.get_tracking_chunks()

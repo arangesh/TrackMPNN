@@ -11,6 +11,7 @@ import torch.optim as optim
 
 from models.track_mpnn import TrackMPNN
 from models.loss import create_targets, FocalLoss, CELoss
+from models.dla.model import save_model
 from dataset.kitti_mot import KittiMOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics, compute_map
@@ -19,9 +20,11 @@ from utils.gradients import plot_grad_flow
 
 
 kwargs_train = {'batch_size': 1, 'shuffle': True}
-train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.timesteps, args.num_img_feats, args.random_transforms, args.cuda), **kwargs_train)
+train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.timesteps, args.num_img_feats, 
+                os.path.join('.', 'weights', 'model_last_kitti.pth'), args.random_transforms, args.cuda), **kwargs_train)
 kwargs_val = {'batch_size': 1, 'shuffle': False}
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.timesteps, args.num_img_feats, False, args.cuda), **kwargs_val)
+val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.timesteps, args.num_img_feats, 
+                None, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
@@ -262,7 +265,7 @@ def val(model, epoch):
         best_mota = val_mota
         # save the TrackMPNN model and the detector
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
-        torch.save(val_loader.dataset.detector.model.state_dict(), os.path.join(args.output_dir, 'dla-detector_' + '%.4d' % (epoch,) + '.pth'))
+        save_model(os.path.join(args.output_dir, 'dla-detector_' + '%.4d' % (epoch,) + '.pth'), epoch, val_loader.dataset.detector.model, optimizer=None)
 
     train_loader.dataset.detector = val_loader.dataset.detector # copy back the trained detector from the val loader
     val_loader.dataset.detector = None # set detector from val loader to None to save memory

@@ -3,7 +3,6 @@ from __future__ import division
 from __future__ import print_function
 
 from types import SimpleNamespace
-import os
 import time
 
 import cv2
@@ -21,9 +20,9 @@ from .utils.ddd_utils import draw_box_3d, unproject_2d_to_3d
 
 
 class DddDetector(object):
-    def __init__(self, cuda, split, num_img_feats=4, dataset='kitti'):
+    def __init__(self, snapshot, cuda, split, num_img_feats=4, dataset='kitti'):
         if dataset == 'kitti':
-            self.opt = self.create_options_kitti(cuda, split, num_img_feats)
+            self.opt = self.create_options_kitti(snapshot, cuda, split, num_img_feats)
 
         print('Creating model...')
         self.model = create_model(34, self.opt.heads, 256)
@@ -43,7 +42,7 @@ class DddDetector(object):
                                [0, 707.0493, 180.5066, -0.3454157],
                                [0, 0, 1., 0.004981016]], dtype=np.float32)
 
-    def create_options_kitti(self, cuda, split, num_img_feats):
+    def create_options_kitti(self, snapshot, cuda, split, num_img_feats):
         opt_dict = dict()
         opt_dict['cuda'] = cuda
         opt_dict['split'] = split
@@ -55,7 +54,7 @@ class DddDetector(object):
         opt_dict['reg_bbox'] = True
         opt_dict['reg_offset'] = True
         opt_dict['heads'] = {'hm': 3, 'wh':2, 'reg':2, 'dep': 1, 'rot': 8, 'dim': 3, 'trk': num_img_feats}
-        opt_dict['load_model'] = os.path.join('.', 'weights', 'model_last_kitti.pth')
+        opt_dict['load_model'] = snapshot
         opt_dict['test_scales'] = [1]
         opt_dict['num_classes'] = 3
         opt_dict['mean'] = [0.485, 0.456, 0.406]
