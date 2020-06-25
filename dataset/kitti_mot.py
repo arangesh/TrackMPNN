@@ -246,7 +246,7 @@ class KittiMOTDataset(data.Dataset):
             if self.cat != tmp[2]:
                 continue
             # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
-            b = [ann['frame'], ann['track_id'], self.class_dict[self.cat]] \
+            b = [ann['frame'], ann['track_id'], ann['category_id']] \
                 + [ann['alpha']] + ann['bbox'] + ann['dim'] \
                 + ann['location'] + [ann['rotation_y']] + [1]
             bbox_gt = np.concatenate((bbox_gt, np.array([b], dtype=np.float32)), axis=0)
@@ -309,16 +309,14 @@ class KittiMOTDataset(data.Dataset):
         num_classes = self.detector.opt.num_classes
 
         height, width = im_shape[0:2]
-        inp_height, inp_width = self.detector.opt.input_h, self.detector.opt.input_w
         c = np.array([width / 2, height / 2], dtype=np.float32)
         if self.detector.opt.keep_res:
+            inp_height, inp_width = self.detector.opt.input_h, self.detector.opt.input_w
             s = np.array([inp_width, inp_height], dtype=np.int32)
-            out_height = self.detector.opt.output_h
-            out_width = self.detector.opt.output_w
         else:
             s = np.array([width, height], dtype=np.int32)
-            out_height = height // self.detector.opt.down_ratio
-            out_width = width // self.detector.opt.down_ratio
+        out_height = self.detector.opt.output_h
+        out_width = self.detector.opt.output_w
         trans_output = get_affine_transform(c, s, 0, [out_width, out_height])
 
         hm = np.zeros(
@@ -486,4 +484,5 @@ class KittiMOTDataset(data.Dataset):
                 # add embedding loss
                 tot_loss += self.embed_loss(features[:, -self.num_img_feats:], bbox_pred[:, :2].astype('int64'))
                 tot_loss.backward()
+                self.optimizer.step()
         return features.detach(), bbox_pred, bbox_gt, tot_loss.detach()

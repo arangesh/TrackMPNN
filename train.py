@@ -114,7 +114,6 @@ def train(model, epoch):
         loss = loss_d + loss_c + loss_f
         epoch_loss.append(loss.item())
         loss.backward()
-        train_loader.dataset.optimizer.step()
         optimizer_trk.step()
 
         # save gradient flow image through detector and tracker model
