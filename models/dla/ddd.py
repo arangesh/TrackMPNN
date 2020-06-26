@@ -28,10 +28,7 @@ class DddDetector(object):
         self.model = create_model(34, self.opt.heads, 256)
         self.model = load_model(self.model, self.opt.load_model)
         self.model = self.model.to(self.opt.device)
-        if self.opt.split == 'train':
-            self.model.train()
-        else:
-            self.model.eval()
+        self.model.eval()
 
         self.mean = np.array(self.opt.mean, dtype=np.float32).reshape(1, 1, 3)
         self.std = np.array(self.opt.std, dtype=np.float32).reshape(1, 1, 3)

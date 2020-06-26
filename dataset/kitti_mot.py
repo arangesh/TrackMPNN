@@ -92,7 +92,7 @@ class KittiMOTDataset(data.Dataset):
             self.det_loss = DddLoss(self.detector.opt)
             self.embed_loss = EmbeddingLoss()
             # optimizer for detector
-            self.optimizer = optim.Adam(self.detector.model.parameters(), lr=1.25e-5)
+            self.optimizer = optim.Adam(list(param for (name, param) in self.detector.model.named_parameters() if 'trk' in name), lr=1.25e-5)
         elif self.split == 'val':
             # do not initialize a second detector for val (will use the same one as train)
             self.detector = None
@@ -433,10 +433,10 @@ class KittiMOTDataset(data.Dataset):
             # run forward pass through detector
             detector_ops = self.detector.run(im)
             # apply detector losses
-            if self.split == 'train':
-                det_labels = self.create_detector_labels(annotations, im.shape)
-                loss, loss_stats = self.det_loss(detector_ops['outputs'], det_labels)
-                tot_loss += loss.mean() / self.timesteps
+            #if self.split == 'train':
+            #    det_labels = self.create_detector_labels(annotations, im.shape)
+            #    loss, loss_stats = self.det_loss(detector_ops['outputs'], det_labels)
+            #    tot_loss += loss.mean() / self.timesteps
 
             # object classes = {1: 'Pedestrian', 2: 'Car', 3: 'Cyclist'}
             # [num_dets, (alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score)]
@@ -483,6 +483,4 @@ class KittiMOTDataset(data.Dataset):
             if self.split == 'train':
                 # add embedding loss
                 tot_loss += self.embed_loss(features[:, -self.num_img_feats:], bbox_pred[:, :2].astype('int64'))
-                tot_loss.backward()
-                self.optimizer.step()
-        return features.detach(), bbox_pred, bbox_gt, tot_loss.detach()
+        return features.detach(), bbox_pred, bbox_gt, tot_loss

@@ -43,7 +43,6 @@ def random_seed(seed_value, use_cuda):
 def train(model, epoch):
     epoch_loss_d, epoch_loss_c, epoch_loss_f, epoch_loss, epoch_f1 = list(), list(), list(), list(), list()
     model.train() # set TrackMPNN model to train mode
-    train_loader.dataset.detector.model.train() # set detector to train mode
     train_loader.dataset.detector.opt.split = 'train' # set split to train
     for b_idx, (X_seq, bbox_pred, _, loss_d) in enumerate(train_loader):
         # if no detections in sequence
@@ -115,6 +114,7 @@ def train(model, epoch):
         epoch_loss.append(loss.item())
         loss.backward()
         optimizer_trk.step()
+        train_loader.dataset.optimizer.step()
 
         # save gradient flow image through detector and tracker model
         if (b_idx % 100 == 0) and args.plot_gradients:
@@ -157,7 +157,6 @@ def val(model, epoch):
     model.eval() # set TrackMPNN model to eval mode
     val_loader.dataset.detector = train_loader.dataset.detector # use trained detector for the val loader
     train_loader.dataset.detector = None # set trained detector to None to save memory
-    val_loader.dataset.detector.model.eval() # set detector model to eval mode
     val_loader.dataset.detector.opt.split = 'val' # set split to val
 
     bbox_pred_dict, bbox_gt_dict = {}, {} # initialize dictionaries for computing mAP
