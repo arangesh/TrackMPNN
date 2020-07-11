@@ -15,6 +15,7 @@ from models.dla.ddd import DddDetector
 from models.dla.loss import DddLoss
 from models.dla.utils.image import gaussian_radius, draw_umich_gaussian, draw_msra_gaussian
 from models.dla.utils.image import get_affine_transform, affine_transform
+from models.dla.utils.ddd_utils import compute_box_3d
 from models.loss import EmbeddingLoss
 
 
@@ -78,6 +79,7 @@ class KittiMOTDataset(data.Dataset):
         self.random_transforms = random_transforms
         self.cuda = cuda
         self.dropout_ratio = 0.2 # probability of a detection being dropped
+        self.fr_range = 30
 
         if self.split == 'test':
             self.im_path = os.path.join(dataset_root_path, 'testing', 'image_02')
@@ -102,15 +104,23 @@ class KittiMOTDataset(data.Dataset):
         # get tracking batch information 
         self.chunks = self.get_tracking_chunks()
         # load mean values for each feature
-        mean = [0.90] + [621, 187.5, 621, 187.5] # 2d features
-        mean = mean + [1.53, 1.63, 3.88] + [0.0, 0.8, 35.70] + [0.0] # 3d features
-        mean = mean + [0.0 for _ in range(self.num_img_feats)] # image features
-        self.mean = self._convert_to_tensor(np.array([mean], dtype='float32'))
+        mean = [0.0 for _ in range(self.num_img_feats)] # image features
+        mean = mean + [0.90] + [621, 187.5, 621, 187.5] # 2d features
+        mean = mean + [1.53, 1.63, 3.88] + [0.0] # 3d features
+        mean = mean + [0.0 for _ in range(8)] # point features (X)
+        mean = mean + [0.8 for _ in range(8)] # point features (Y)
+        mean = mean + [35.70 for _ in range(8)] # point features (Z)
+        mean = mean + [0.0 for _ in range(2*8)] # time feature (T)
+        self.mean = self._convert_to_tensor([mean])
         # load std values for each feature
-        std = [0.20] + [1242.0, 375.0, 1242.0, 375.0] # 2d features
-        std = std + [0.14, 0.10, 0.43] + [123.95, 1.0, 395.67] + [np.pi] # 3d features
-        std = std + [1.0 for _ in range(self.num_img_feats)] # image features
-        self.std = self._convert_to_tensor(np.array([std], dtype='float32'))
+        std = [1.0 for _ in range(self.num_img_feats)] # image features
+        std = std + [0.20] + [1242.0, 375.0, 1242.0, 375.0] # 2d features
+        std = std + [0.14, 0.10, 0.43] + [np.pi] # 3d features
+        std = std + [123.95 for _ in range(8)] # point features (X)
+        std = std + [1.0 for _ in range(8)] # point features (Y)
+        std = std + [395.67 for _ in range(8)] # point features (Z)
+        std = std + [1.0 for _ in range(2*8)] # time features (T)
+        self.std = self._convert_to_tensor([std])
 
         print('Finished preparing ' + self.split + ' dataset!')
 
@@ -122,6 +132,8 @@ class KittiMOTDataset(data.Dataset):
         """
         Handles conversion of ndarrays/datatypes to cuda/normal tensors
         """
+        if type(var) == type([]):
+            var = np.array(var, dtype=np.float32)
         if isinstance(var, np.ndarray):
             var = torch.from_numpy(var)
         if self.cuda:
@@ -273,6 +285,14 @@ class KittiMOTDataset(data.Dataset):
         if len(feats) == 0:
             return self._convert_to_tensor(np.zeros((0, self.num_img_feats), dtype='float32'))
         feats = torch.cat(feats, dim=0)
+        return feats
+
+    def get_fr_feats(self, frames):
+        """
+        Extract bounded, cyclic features representing frame
+        """
+        feats = np.mod(frames, self.fr_range) * np.pi / self.fr_range
+        feats = np.concatenate((np.sin(feats), np.cos(feats)), axis=1)
         return feats
 
     def get_track_ids(self, bbox_pred, bbox_gt, iou_thresh=0.5):
@@ -451,8 +471,8 @@ class KittiMOTDataset(data.Dataset):
 
             # apply time reversal transform
             if random_transforms_tr:
-                bbox_pred_fr[:, 0] = input_info[2] - bbox_pred_fr[:, 0]
-                bbox_gt_fr[:, 0] = input_info[2] - bbox_gt_fr[:, 0]
+                bbox_pred_fr[:, 0] = input_info[2] - bbox_pred_fr[:, 0] + input_info[1]
+                bbox_gt_fr[:, 0] = input_info[2] - bbox_gt_fr[:, 0] + input_info[1]
 
             # assign GT track ids to each predicted bbox
             bbox_pred_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
@@ -469,18 +489,22 @@ class KittiMOTDataset(data.Dataset):
                 bbox_pred_fr[:, 4:8], im.shape))
 
         # features for tracker
-        # [score, x1, y1, x2, y2]
-        two_d_feats = self._convert_to_tensor(bbox_pred[:, [15, 4, 5, 6, 7]])
-        # [h, w, l, X, Y, Z, rotation_y]
-        three_d_feats = self._convert_to_tensor(bbox_pred[:, [8, 9, 10, 11, 12, 13, 14]])
         # image features
         im_feats = torch.cat(im_feats, 0)
-        # (num_dets, 5 + 7 + num_img_feats)
-        features = torch.cat((two_d_feats, three_d_feats, im_feats), 1)
+        # [score, x1, y1, x2, y2]
+        two_d_feats = self._convert_to_tensor(bbox_pred[:, [15, 4, 5, 6, 7]])
+        # [h, w, l, rotation_y]
+        three_d_feats = self._convert_to_tensor(bbox_pred[:, [8, 9, 10, 14]])
+        # spatiotemporal features
+        sp_coords = [compute_box_3d(bbox[8:11], bbox[11:14], bbox[14]) for bbox in bbox_pred]
+        temp_coords = [np.tile(x, (8, 1)) for x in self.get_fr_feats(bbox_pred[:, 0:1])]
+        sptemp_coords = self._convert_to_tensor([np.concatenate((x, y), axis=1).transpose(1, 0).reshape(-1) for x, y in zip(sp_coords, temp_coords)])
+        # (num_dets, num_img_feats + 5 + 4 + 3)
+        features = torch.cat((im_feats, two_d_feats, three_d_feats, sptemp_coords), 1)
 
         if features.size()[0] != 0:
             features = (features - self.mean) / self.std # normalize/standardize features
             if self.split == 'train':
                 # add embedding loss
-                tot_loss += self.embed_loss(features[:, -self.num_img_feats:], bbox_pred[:, :2].astype('int64'))
+                tot_loss += self.embed_loss(features[:, :self.num_img_feats], bbox_pred[:, :2].astype('int64'))
         return features.detach(), bbox_pred, bbox_gt, tot_loss
