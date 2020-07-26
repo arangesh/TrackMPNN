@@ -33,7 +33,8 @@ if os.path.exists(os.path.join(os.path.dirname(args.snapshot), 'config.json')):
     with open(os.path.join(os.path.dirname(args.snapshot), 'config.json')) as f:
         json_args = json.load(f)
     # augment infer args with training args for model consistency
-    args.timesteps = json_args['timesteps']
+    args.cur_win_size = json_args['cur_win_size']
+    args.cur_win_size = json_args['ret_win_size']
     args.category = json_args['category']
     args.num_img_feats = json_args['num_img_feats']
     args.num_hidden_feats = json_args['num_hidden_feats']

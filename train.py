@@ -20,10 +20,10 @@ from utils.gradients import plot_grad_flow
 
 
 kwargs_train = {'batch_size': 1, 'shuffle': True}
-train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.timesteps, args.num_img_feats, 
+train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.cur_win_size, args.ret_win_size, args.num_img_feats, 
                 os.path.join('.', 'weights', 'model_last_kitti.pth'), args.random_transforms, args.cuda), **kwargs_train)
 kwargs_val = {'batch_size': 1, 'shuffle': False}
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.timesteps, args.num_img_feats, 
+val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.cur_win_size, args.ret_win_size, args.num_img_feats, 
                 None, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
@@ -85,6 +85,8 @@ def train(model, epoch):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
                 use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
+            if feats.size()[0] == 0:
+                continue
             scores, states = model(feats, states, node_adj, edge_adj)
             # compute the loss
             idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
@@ -220,12 +222,12 @@ def val(model, epoch):
                 continue
 
             if t_cur == t_end - 1:
-                y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 10, 
-                    use_hungraian=args.hungarian, cuda=args.cuda)
+                y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 
+                    args.ret_win_size, use_hungraian=args.hungarian, cuda=args.cuda)
             else:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, 
-                    t_cur - args.timesteps + 2, 10, use_hungraian=args.hungarian, cuda=args.cuda)
-            print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t_cur - args.timesteps + 1), t_end))
+                    t_cur - args.cur_win_size + 2, args.ret_win_size, use_hungraian=args.hungarian, cuda=args.cuda)
+            print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t_cur - args.cur_win_size + 1), t_end))
         print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, t_end, t_end))
 
         # create results accumulator using predictions and GT for evaluation
@@ -276,7 +278,7 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeatures=args.num_img_feats + 5 + 4 + 16, nhidden=args.num_hidden_feats, msg_type=args.msg_type)
+    model = TrackMPNN(nfeatures=args.num_img_feats + 5 + 4 + 5, nhidden=args.num_hidden_feats, msg_type=args.msg_type)
 
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=True)

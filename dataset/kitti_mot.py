@@ -63,7 +63,7 @@ def store_kitti_results(bbox_pred, y_out, class_dict, output_path):
 
 
 class KittiMOTDataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', cat='Car', timesteps=5, num_img_feats=4, snapshot=None, random_transforms=False, cuda=True):
+    def __init__(self, dataset_root_path=None, split='train', cat='Car', cur_win_size=5, ret_win_size=10, num_img_feats=4, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -73,7 +73,8 @@ class KittiMOTDataset(data.Dataset):
         self.split = split
         self.class_dict = {'Pedestrian': 1, 'Car': 2, 'Cyclist': 3}
         self.cat = cat
-        self.timesteps = timesteps
+        self.cur_win_size = cur_win_size
+        self.ret_win_size = ret_win_size
         self.num_img_feats = num_img_feats # number of image based features to be used for tracking
         self.snapshot = snapshot
         self.random_transforms = random_transforms
@@ -107,19 +108,19 @@ class KittiMOTDataset(data.Dataset):
         mean = [0.0 for _ in range(self.num_img_feats)] # image features
         mean = mean + [0.90] + [621, 187.5, 621, 187.5] # 2d features
         mean = mean + [1.53, 1.63, 3.88] + [0.0] # 3d features
-        mean = mean + [0.0 for _ in range(8)] # point features (X)
-        mean = mean + [0.8 for _ in range(8)] # point features (Y)
-        mean = mean + [35.70 for _ in range(8)] # point features (Z)
-        mean = mean + [0.0 for _ in range(2*8)] # time feature (T)
+        mean = mean + [0.0 for _ in range(1)] # point features (X)
+        mean = mean + [0.8 for _ in range(1)] # point features (Y)
+        mean = mean + [35.70 for _ in range(1)] # point features (Z)
+        mean = mean + [0.0 for _ in range(2*1)] # time feature (T)
         self.mean = self._convert_to_tensor([mean])
         # load std values for each feature
         std = [1.0 for _ in range(self.num_img_feats)] # image features
         std = std + [0.20] + [1242.0, 375.0, 1242.0, 375.0] # 2d features
         std = std + [0.14, 0.10, 0.43] + [np.pi] # 3d features
-        std = std + [123.95 for _ in range(8)] # point features (X)
-        std = std + [1.0 for _ in range(8)] # point features (Y)
-        std = std + [395.67 for _ in range(8)] # point features (Z)
-        std = std + [1.0 for _ in range(2*8)] # time features (T)
+        std = std + [123.95 for _ in range(1)] # point features (X)
+        std = std + [1.0 for _ in range(1)] # point features (Y)
+        std = std + [395.67 for _ in range(1)] # point features (Z)
+        std = std + [1.0 for _ in range(2*1)] # time features (T)
         self.std = self._convert_to_tensor([std])
 
         print('Finished preparing ' + self.split + ' dataset!')
@@ -180,11 +181,15 @@ class KittiMOTDataset(data.Dataset):
         chunks = []
         if self.split == 'train':
             for i, seq in enumerate(seqs):
-                for st_fr in range(0, num_frames[i], int(self.timesteps / 2)):
-                    chunks.append([seq, st_fr, min(st_fr + self.timesteps, num_frames[i])])
+                for st_fr in range(0, num_frames[i], int(self.cur_win_size / 2)):
+                    fr_list = [fr for fr in range(st_fr, min(st_fr + self.cur_win_size, num_frames[i]))]
+                    skip_fr = random.randint(st_fr + self.cur_win_size, st_fr + self.cur_win_size + self.ret_win_size)
+                    if skip_fr < num_frames[i] - 1:
+                        fr_list = fr_list + [skip_fr, skip_fr + 1]
+                    chunks.append([seq, fr_list])
         else:
             for i, seq in enumerate(seqs):
-                chunks.append([seq, 0, num_frames[i]])
+                chunks.append([seq, [fr for fr in range(0, num_frames[i])]])
 
         return chunks
 
@@ -438,7 +443,7 @@ class KittiMOTDataset(data.Dataset):
         if self.split == 'train':
             self.optimizer.zero_grad()
 
-        for fr in range(input_info[1], input_info[2], 1):
+        for fr in input_info[1]:
             # load image
             im = cv2.imread(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
             
@@ -456,7 +461,7 @@ class KittiMOTDataset(data.Dataset):
             #if self.split == 'train':
             #    det_labels = self.create_detector_labels(annotations, im.shape)
             #    loss, loss_stats = self.det_loss(detector_ops['outputs'], det_labels)
-            #    tot_loss += loss.mean() / self.timesteps
+            #    tot_loss += loss.mean() / self.cur_win_size
 
             # object classes = {1: 'Pedestrian', 2: 'Car', 3: 'Cyclist'}
             # [num_dets, (alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score)]
@@ -471,8 +476,8 @@ class KittiMOTDataset(data.Dataset):
 
             # apply time reversal transform
             if random_transforms_tr:
-                bbox_pred_fr[:, 0] = input_info[2] - bbox_pred_fr[:, 0] + input_info[1]
-                bbox_gt_fr[:, 0] = input_info[2] - bbox_gt_fr[:, 0] + input_info[1]
+                bbox_pred_fr[:, 0] = input_info[1][-1] - bbox_pred_fr[:, 0] + input_info[1][0]
+                bbox_gt_fr[:, 0] = input_info[1][-1] - bbox_gt_fr[:, 0] + input_info[1][0]
 
             # assign GT track ids to each predicted bbox
             bbox_pred_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
@@ -496,10 +501,10 @@ class KittiMOTDataset(data.Dataset):
         # [h, w, l, rotation_y]
         three_d_feats = self._convert_to_tensor(bbox_pred[:, [8, 9, 10, 14]])
         # spatiotemporal features
-        sp_coords = [compute_box_3d(bbox[8:11], bbox[11:14], bbox[14]) for bbox in bbox_pred]
-        temp_coords = [np.tile(x, (8, 1)) for x in self.get_fr_feats(bbox_pred[:, 0:1])]
-        sptemp_coords = self._convert_to_tensor([np.concatenate((x, y), axis=1).transpose(1, 0).reshape(-1) for x, y in zip(sp_coords, temp_coords)])
-        # (num_dets, num_img_feats + 5 + 4 + 3)
+        sp_coords = bbox_pred[:, 11:14]
+        temp_coords = self.get_fr_feats(bbox_pred[:, 0:1])
+        sptemp_coords = self._convert_to_tensor(np.concatenate((sp_coords, temp_coords), axis=1))
+        # (num_dets, num_img_feats + 5 + 4 + 5)
         features = torch.cat((im_feats, two_d_feats, three_d_feats, sptemp_coords), 1)
 
         if features.size()[0] != 0:
