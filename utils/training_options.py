@@ -23,7 +23,7 @@ parser.add_argument('--learning-rate', type=float, default=0.0001, metavar='LR',
 parser.add_argument('--momentum', type=float, default=0.9, metavar='M', help='momentum for gradient step')
 parser.add_argument('--weight-decay', type=float, default=0.0005, metavar='WD', help='weight decay')
 parser.add_argument('--log-schedule', type=int, default=10, metavar='N', help='number of iterations to print/save log after')
-parser.add_argument('--seed', type=int, default=1, help='set seed to some constant value to reproduce experiments')
+parser.add_argument('--seed', type=int, default=5, help='set seed to some constant value to reproduce experiments')
 parser.add_argument('--no-cuda', action='store_true', default=False, help='do not use cuda for training')
 parser.add_argument('--plot-gradients', action='store_true', default=False, help='plot gradient magnitudes during training')
 parser.add_argument('--random-transforms', action='store_true', default=False, help='use random transforms for data augmentation')

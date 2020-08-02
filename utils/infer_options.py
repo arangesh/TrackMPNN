@@ -11,7 +11,7 @@ parser.add_argument('--snapshot', type=str, help='use a pre-trained model snapsh
 parser.add_argument('--dataset-root-path', type=str, default='/home/akshay/data/kitti-mot', help='path to dataset')
 parser.add_argument('--output-dir', type=str, default=None, help='output directory for model and logs')
 parser.add_argument('--hungarian', action='store_true', default=False, help='decode tracks using frame-by-frame Hungarian algorithm')
-parser.add_argument('--seed', type=int, default=1, help='set seed to some constant value to reproduce experiments')
+parser.add_argument('--seed', type=int, default=5, help='set seed to some constant value to reproduce experiments')
 parser.add_argument('--no-cuda', action='store_true', default=False, help='do not use cuda for training')
 
 
