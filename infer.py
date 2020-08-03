@@ -12,7 +12,7 @@ from utils.infer_options import args
 
 kwargs_infer = {'batch_size': 1, 'shuffle': False}
 det_snapshot = os.path.join(os.path.dirname(args.snapshot), 'dla-detector_' + args.snapshot[-8:])
-infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.category, args.cur_win_size, args.ret_win_size
+infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.category, args.cur_win_size, args.ret_win_size, 
                 args.num_img_feats, det_snapshot, False, args.cuda), **kwargs_infer)
 
 
