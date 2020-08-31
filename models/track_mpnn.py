@@ -7,8 +7,11 @@ from models.layers import FactorGraphGRU
 
 
 class TrackMPNN(nn.Module):
-    def __init__(self, nfeatures, nhidden, msg_type):
+    def __init__(self, nfeatures, nimgfeatures, nhidden, msg_type):
         super(TrackMPNN, self).__init__()
+        self.nimgfeatures = nimgfeatures
+        self.input_norm = nn.BatchNorm1d(self.nimgfeatures, affine=False)
+
         self.input_transform_1 = nn.Linear(nfeatures, nhidden, bias=True)
         self.input_transform_1.weight.data.normal_(mean=0.0, std=0.01)
         self.input_transform_1.bias.data.uniform_(0, 0)
@@ -34,6 +37,7 @@ class TrackMPNN(nn.Module):
         I_edge = torch.diag(torch.diag(edge_adj.to_dense())).to_sparse() # (N', N')
 
         if x.size()[0] > 0:
+            x = torch.cat((self.input_norm(x[:, :self.nimgfeatures]), x[:, self.nimgfeatures:]), dim=1) # (N'-N, nfeatures)
             x = self.input_transform(x) # (N'-N, nhidden)
 
             h_update = torch.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhidden)

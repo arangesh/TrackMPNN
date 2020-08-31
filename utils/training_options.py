@@ -12,7 +12,7 @@ parser.add_argument('--output-dir', type=str, default=None, help='output directo
 parser.add_argument('--snapshot', type=str, default=None, help='use a pre-trained model snapshot')
 parser.add_argument('--category', type=str, default='Car', metavar='cat', help='Category to train model for: Pedestrian/Car/Cyclist')
 parser.add_argument('--cur-win-size', type=int, default=5, metavar='CWS', help='number of timesteps in curring processing window')
-parser.add_argument('--ret-win-size', type=int, default=5, metavar='RWS', help='number of timesteps in the past to be retained for association')
+parser.add_argument('--ret-win-size', type=int, default=10, metavar='RWS', help='number of timesteps in the past to be retained for association')
 parser.add_argument('--hungarian', action='store_true', default=False, help='decode tracks using frame-by-frame Hungarian algorithm')
 parser.add_argument('--no-tp-classifier', action='store_true', default=False, help='train network to only classify edges')
 parser.add_argument('--num-img-feats', type=int, default=4, metavar='NIMG', help='number of image features')
