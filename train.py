@@ -247,6 +247,7 @@ def val(model, epoch):
     val_f1 = statistics.mean(epoch_f1)
     # Calculate MOTA
     if len(accs) > 0:
+        val_motas = [100.0 * calc_mot_metrics([_])['mota'] for _ in accs]
         val_mota = 100.0 * calc_mot_metrics(accs)['mota']
     else:
         mota = -1
@@ -254,9 +255,13 @@ def val(model, epoch):
     val_map = 100.0 * compute_map(bbox_pred_dict, bbox_gt_dict)
 
     print("------------------------\nValidation F1 score = {:.4f}".format(val_f1))
+    for seq_num, _ in enumerate(val_motas):
+        print("Validation MOTA for sequence {:d} = {:.2f}%".format(seq_num, val_motas[seq_num]))
     print("Validation MOTA = {:.2f}%".format(val_mota))
     print("Validation mAP = {:.2f}%\n------------------------".format(val_map))
     f_log.write("\nValidation F1 score = {:.4f}\n".format(val_f1))
+    for seq_num, _ in enumerate(val_motas):
+        f_log.write("Validation MOTA for sequence {:d} = {:.2f}%\n".format(seq_num, val_motas[seq_num]))
     f_log.write("Validation MOTA = {:.2f}%\n".format(val_mota))
     f_log.write("Validation mAP = {:.2f}%\n------------------------\n\n".format(val_map))
 
