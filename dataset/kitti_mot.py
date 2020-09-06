@@ -496,8 +496,9 @@ class KittiMOTDataset(data.Dataset):
         # features for tracker
         # image features
         im_feats = torch.cat(im_feats, 0)
-        # [score, x1, y1, x2, y2]
-        two_d_feats = self._convert_to_tensor(bbox_pred[:, [15, 4, 5, 6, 7]])
+        # [score, xc, yc, w, h]
+        two_d_feats = self._convert_to_tensor(np.stack((bbox_pred[:, 15], (bbox_pred[:, 4] + bbox_pred[:, 6])/2.0, 
+            (bbox_pred[:, 5] + bbox_pred[:, 7])/2.0, bbox_pred[:, 6] - bbox_pred[:, 4], bbox_pred[:, 7] - bbox_pred[:, 5]), axis=1))
         # [h, w, l, rotation_y]
         three_d_feats = self._convert_to_tensor(bbox_pred[:, [8, 9, 10, 14]])
         # spatiotemporal features
