@@ -77,7 +77,6 @@ class FocalLoss(nn.Module):
 class CELoss(nn.Module):
     def __init__(self):
         super(CELoss, self).__init__()
-        self.nll = nn.NLLLoss()
 
     def forward(self, outputs, targets, node_adj, idx_node):
         idx_node = idx_node.detach().cpu().numpy().astype('int64') # (D,)
@@ -99,6 +98,8 @@ class CELoss(nn.Module):
                     pass
                 elif pos_edges.numel() == 1: # if only one positive edge
                     loss += F.cross_entropy(outputs[:, idx_ce], pos_edges) / idx_ce.size
+                else: # if more than one positive edge
+                    loss += F.cross_entropy(outputs[:, idx_ce], pos_edges[-1]) / idx_ce.size
 
             # for edges to the future
             idx_ce = idx + np.nonzero(node_adj[idx:, idx])[0]
@@ -109,6 +110,8 @@ class CELoss(nn.Module):
                     pass
                 elif pos_edges.numel() == 1: # if only one positive edge
                     loss += F.cross_entropy(outputs[:, idx_ce], pos_edges) / idx_ce.size
+                else: # if more than one positive edge
+                    loss += F.cross_entropy(outputs[:, idx_ce], pos_edges[0]) / idx_ce.size
         return loss
 
 

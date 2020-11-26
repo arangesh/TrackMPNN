@@ -40,7 +40,7 @@ def infer(model):
         y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, mode='test', cuda=args.cuda)
         
         # compute the classification scores
-        scores, states = model(feats, None, node_adj, edge_adj)
+        scores, logits, states = model(feats, None, node_adj, edge_adj)
         scores = torch.cat((1-scores, scores), dim=1)
         if not args.tp_classifier:
             idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
@@ -55,7 +55,7 @@ def infer(model):
             if feats.size()[0] == 0:
                 print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t_cur - args.cur_win_size + 1), t_end))
                 continue
-            scores, states = model(feats, states, node_adj, edge_adj)
+            scores, logits, states = model(feats, states, node_adj, edge_adj)
             scores = torch.cat((1-scores, scores), dim=1)
             if not args.tp_classifier:
                 idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]

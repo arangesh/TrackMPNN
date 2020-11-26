@@ -51,4 +51,4 @@ class TrackMPNN(nn.Module):
         h_out = self.factor_gru1(h, node_adj, edge_adj) # (N', nhidden)
         y = torch.mm(I_node, self.output_transform_node(h_out)) + torch.mm(I_edge, self.output_transform_edge(h_out)) # (N', 1)
 
-        return self.output_activation(y), h_out
+        return self.output_activation(y), y, h_out

@@ -58,14 +58,14 @@ def train(model, epoch):
         y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, mode='train', cuda=args.cuda)
         if y_pred is None:
             continue
-        scores, states = model(feats, None, node_adj, edge_adj)
+        scores, logits, states = model(feats, None, node_adj, edge_adj)
         # compute the loss
         idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
         idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
         # calculate targets for CE and BCE(Focal) loss
         targets = create_targets(labels, node_adj, idx_node)
         # calculate CE loss
-        loss_c = ce_loss(scores, targets, node_adj, idx_node)
+        loss_c = ce_loss(logits, targets, node_adj, idx_node)
         if args.tp_classifier:
             loss_f = focal_loss_node(scores[idx_node, 0], targets[idx_node]) + focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
             scores = torch.cat((1 - scores, scores), dim=1)
@@ -87,14 +87,14 @@ def train(model, epoch):
                 use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
             if feats.size()[0] == 0:
                 continue
-            scores, states = model(feats, states, node_adj, edge_adj)
+            scores, logits, states = model(feats, states, node_adj, edge_adj)
             # compute the loss
             idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
             idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
             # calculate targets for CE and BCE(Focal) loss
             targets = create_targets(labels, node_adj, idx_node)
             # calculate CE loss
-            loss_c += ce_loss(scores, targets, node_adj, idx_node)
+            loss_c += ce_loss(logits, targets, node_adj, idx_node)
             if args.tp_classifier:
                 loss_f += focal_loss_node(scores[idx_node, 0], targets[idx_node]) + focal_loss_edge(scores[idx_edge, 0], targets[idx_edge])
                 scores = torch.cat((1 - scores, scores), dim=1)
@@ -178,7 +178,7 @@ def val(model, epoch):
         if y_pred is None:
             continue
         # compute the classification scores
-        scores, states = model(feats, None, node_adj, edge_adj)
+        scores, logits, states = model(feats, None, node_adj, edge_adj)
         scores = torch.cat((1-scores, scores), dim=1)
 
         idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
@@ -200,7 +200,7 @@ def val(model, epoch):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
                 use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
-            scores, states = model(feats, states, node_adj, edge_adj)
+            scores, logits, states = model(feats, states, node_adj, edge_adj)
             scores = torch.cat((1-scores, scores), dim=1)
 
             idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
