@@ -19,14 +19,25 @@ pipenv install https://download.pytorch.org/whl/cu100/torch-1.2.0-cp36-cp36m-man
 ```
 Note that this repository additionally uses code from [PointNet.pytorch](https://github.com/fxia22/pointnet.pytorch) and [Graph Convolutional Networks in PyTorch](https://github.com/tkipf/pygcn).
 
+5) Clone and make DCNv2:
+```shell
+cd models/dla
+git clone https://github.com/CharlesShang/DCNv2
+cd DCNv2
+./make.sh
+```
+
+6) Download the [pre-trained detector weights](https://drive.google.com/file/d/10F9ZWpZ0SVHwg0xMKldIeKZenb7KktcH/view?usp=sharing) to the `TrackMPNN/weights` folder.
+
 ## Dataset
-1) Download the detection features (proposed by [MOTBeyondPixels](https://github.com/JunaidCS032/MOTBeyondPixels)) for the train and test split on the KITTI-MOTS dataset using [this link](https://drive.google.com/file/d/1xivQ4LC87vlpb4t_0nbkS_gTt81YxNdJ/view?usp=sharing)
-2) Unzip the data
+1) Download and extract the KITTI multi-object tracking (MOT) dataset (including images, labels, and calibration files).
+2) Download the detection features (proposed by [MOTBeyondPixels](https://github.com/JunaidCS032/MOTBeyondPixels)) for the train and test split on the KITTI MOT dataset using [this link](https://drive.google.com/file/d/1xivQ4LC87vlpb4t_0nbkS_gTt81YxNdJ/view?usp=sharing)
+3) Unzip the data into the KITTI MOT dataset path from 1).
 
 If you would like to re-generate these features, you can do so by using the scripts in the `utils/matlab` folder as follows:
-1) Run `store_feats_train.m` after modifying the `root` variable
-2) Run `store_feats_test.m` after modifying the `root` variable
-3) Run `store_mean_std.m` after modifying the `root` variable
+a) Run `store_feats_train.m` after modifying the `root` variable
+b) Run `store_feats_test.m` after modifying the `root` variable
+c) Run `store_mean_std.m` after modifying the `root` variable
 
 ## Training
 TrackMPNN can be trained using [this](https://github.com/arangesh/TrackMPNN/blob/master/train.py) script as follows:
