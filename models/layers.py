@@ -51,10 +51,11 @@ class FactorGraphGRU(nn.Module):
     """
     Similar to GCN, except different GRU cells for nodes and edges (i.e. variables and factors)
     """
-    def __init__(self, nhidden, msg_type, bias=True):
+    def __init__(self, nhidden, msg_type, nattheads=3, bias=True):
         super(FactorGraphGRU, self).__init__()
         self.nhidden = nhidden
         self.msg_type = msg_type
+        self.nattheads = nattheads
         self.bias = bias
         if self.msg_type == 'concat':
             self.edge_gru = nn.GRUCell(2*nhidden, nhidden, bias=self.bias)
@@ -62,7 +63,7 @@ class FactorGraphGRU(nn.Module):
             self.edge_gru = nn.GRUCell(nhidden, nhidden, bias=self.bias)
         else:
             assert False, 'Incorrect message type for model!'
-        self.gat = GraphAttentionLayer(nhidden, nhidden)
+        self.gat = nn.ModuleList([GraphAttentionLayer(nhidden, nhidden) for _ in range(self.nattheads)])
         self.node_gru = nn.GRUCell(nhidden, nhidden, bias=self.bias)
         self.reset_parameters()
 
@@ -94,7 +95,10 @@ class FactorGraphGRU(nn.Module):
         edge_output = self.edge_gru(node_support, h)
 
         # edge_support: sum(alpha_ei*h_ei)
-        edge_support = self.gat(h, node_adj - I_node, edge_adj - I_edge)
+        edge_support = self.gat[0](h, node_adj - I_node, edge_adj - I_edge)
+        for i in range(1, self.nattheads):
+            edge_support = edge_support + self.gat[i](h, node_adj - I_node, edge_adj - I_edge)
+        edge_support = edge_support / self.nattheads
         # node_output: GRU(h_n(t-1), edge_support)
         node_output = self.node_gru(edge_support, h)
 
