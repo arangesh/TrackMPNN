@@ -7,7 +7,7 @@ from models.layers import FactorGraphGRU
 
 
 class TrackMPNN(nn.Module):
-    def __init__(self, nfeatures, nimgfeatures, nhidden, msg_type):
+    def __init__(self, nfeatures, nimgfeatures, nhidden, nattheads, msg_type):
         super(TrackMPNN, self).__init__()
         self.nimgfeatures = nimgfeatures
         self.input_norm = nn.BatchNorm1d(self.nimgfeatures, affine=False)
@@ -20,7 +20,7 @@ class TrackMPNN(nn.Module):
         self.input_transform_2.bias.data.uniform_(0, 0)
         self.input_transform = nn.Sequential(self.input_transform_1, nn.BatchNorm1d(nhidden), nn.ReLU(), self.input_transform_2)
 
-        self.factor_gru1 = FactorGraphGRU(nhidden, msg_type=msg_type, bias=True)
+        self.factor_gru1 = FactorGraphGRU(nhidden, nattheads, msg_type, True)
 
         self.output_transform_node = nn.Linear(nhidden, 1, bias=True)
         self.output_transform_node.weight.data.normal_(mean=0.0, std=0.01)

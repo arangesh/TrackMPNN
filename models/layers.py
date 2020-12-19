@@ -51,7 +51,7 @@ class FactorGraphGRU(nn.Module):
     """
     Similar to GCN, except different GRU cells for nodes and edges (i.e. variables and factors)
     """
-    def __init__(self, nhidden, msg_type, nattheads=3, bias=True):
+    def __init__(self, nhidden, nattheads=3, msg_type='diff', bias=True):
         super(FactorGraphGRU, self).__init__()
         self.nhidden = nhidden
         self.msg_type = msg_type

@@ -17,6 +17,7 @@ parser.add_argument('--hungarian', action='store_true', default=False, help='dec
 parser.add_argument('--no-tp-classifier', action='store_true', default=False, help='train network to only classify edges')
 parser.add_argument('--num-img-feats', type=int, default=4, metavar='NIMG', help='number of image features')
 parser.add_argument('--num-hidden-feats', type=int, default=64, metavar='NH', help='number of hidden layer nodes')
+parser.add_argument('--num-att-heads', type=int, default=3, metavar='NATT', help='number of attention heads')
 parser.add_argument('--msg-type', type=str, default='diff', help='type of message passing operation (diff/concat)')
 parser.add_argument('--epochs', type=int, default=100, metavar='EP', help='number of epochs to train for')
 parser.add_argument('--learning-rate', type=float, default=0.0001, metavar='LR', help='learning rate')
