@@ -269,7 +269,7 @@ class KittiMOTDataset(data.Dataset):
             bbox_gt = np.concatenate((bbox_gt, np.array([b], dtype=np.float32)), axis=0)
         return annotations, bbox_gt
 
-    def get_trk_feats(self, feat_maps, bboxes, im_shape):
+    def get_im_feats(self, feat_maps, bboxes, im_shape):
         """
         Extract image features from bbox center location
         """
@@ -490,7 +490,7 @@ class KittiMOTDataset(data.Dataset):
             # append to existing bboxes in the sequence
             bbox_pred = np.concatenate((bbox_pred, bbox_pred_fr), axis=0)
             bbox_gt = np.concatenate((bbox_gt, bbox_gt_fr), axis=0)
-            im_feats.append(self.get_trk_feats(detector_ops['outputs']['trk'], 
+            im_feats.append(self.get_im_feats(detector_ops['outputs']['trk'], 
                 bbox_pred_fr[:, 4:8], im.shape))
 
         # features for tracker
