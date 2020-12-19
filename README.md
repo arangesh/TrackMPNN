@@ -31,19 +31,12 @@ cd DCNv2
 
 ## Dataset
 1) Download and extract the KITTI multi-object tracking (MOT) dataset (including images, labels, and calibration files).
-2) Download the detection features (proposed by [MOTBeyondPixels](https://github.com/JunaidCS032/MOTBeyondPixels)) for the train and test split on the KITTI MOT dataset using [this link](https://drive.google.com/file/d/1xivQ4LC87vlpb4t_0nbkS_gTt81YxNdJ/view?usp=sharing)
-3) Unzip the data into the KITTI MOT dataset path from 1).
-
-If you would like to re-generate these features, you can do so by using the scripts in the `utils/matlab` folder as follows:
-a) Run `store_feats_train.m` after modifying the `root` variable
-b) Run `store_feats_test.m` after modifying the `root` variable
-c) Run `store_mean_std.m` after modifying the `root` variable
 
 ## Training
 TrackMPNN can be trained using [this](https://github.com/arangesh/TrackMPNN/blob/master/train.py) script as follows:
 ```shell
 pipenv shell # activate virtual environment
-python train.py --dataset-root-path=/path/to/kitti-mots/ --timesteps=5 --random-transforms
+python train.py --dataset-root-path=/path/to/kitti-mot/ --cur-win-size=5 --random-transforms
 exit # exit virtual environment
 ```
 
@@ -51,7 +44,7 @@ exit # exit virtual environment
 Inference can be carried out using [this](https://github.com/arangesh/TrackMPNN/blob/master/infer.py) script as follows:
 ```shell
 pipenv shell # activate virtual environment
-python infer.py --snapshot=/path/to/snapshot --dataset-root-path=/path/to/kitti-mots/ --timesteps=5
+python infer.py --snapshot=/path/to/snapshot --dataset-root-path=/path/to/kitti-mot/ --timesteps=5
 exit # exit virtual environment
 ```
 
