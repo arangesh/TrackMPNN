@@ -63,7 +63,7 @@ def store_kitti_results(bbox_pred, y_out, class_dict, output_path):
 
 
 class KittiMOTDataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', cat='Car', cur_win_size=5, ret_win_size=10, num_img_feats=4, snapshot=None, random_transforms=False, cuda=True):
+    def __init__(self, dataset_root_path=None, split='train', cat='All', cur_win_size=5, ret_win_size=10, num_img_feats=4, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -72,7 +72,10 @@ class KittiMOTDataset(data.Dataset):
 
         self.split = split
         self.class_dict = {'Pedestrian': 1, 'Car': 2, 'Cyclist': 3}
-        self.cat = cat
+        if cat == 'All':
+            self.cat = ['Pedestrian', 'Car'] # KITTI MOT does not have enough labels for Cyclists
+        else:
+            self.cat = [cat]
         self.cur_win_size = cur_win_size
         self.ret_win_size = ret_win_size
         self.num_img_feats = num_img_feats # number of image based features to be used for tracking
@@ -106,6 +109,7 @@ class KittiMOTDataset(data.Dataset):
         self.chunks = self.get_tracking_chunks()
         # load mean values for each feature
         mean = [0.0 for _ in range(self.num_img_feats)] # image features
+        mean = mean + [0.5, 0.5, 0.5] # one-hot category IDs
         mean = mean + [0.90] + [621, 187.5, 621, 187.5] # 2d features
         mean = mean + [1.53, 1.63, 3.88] + [0.0] # 3d features
         mean = mean + [0.0 for _ in range(1)] # point features (X)
@@ -115,6 +119,7 @@ class KittiMOTDataset(data.Dataset):
         self.mean = self._convert_to_tensor([mean])
         # load std values for each feature
         std = [1.0 for _ in range(self.num_img_feats)] # image features
+        std = std + [1.0, 1.0, 1.0] # one-hot category IDs
         std = std + [0.20] + [1242.0, 375.0, 1242.0, 375.0] # 2d features
         std = std + [0.14, 0.10, 0.43] + [np.pi] # 3d features
         std = std + [123.95 for _ in range(1)] # point features (X)
@@ -260,7 +265,7 @@ class KittiMOTDataset(data.Dataset):
                     ann['rotation_y'] = -np.pi/2 + ann['rotation_y']
             annotations.append(ann)
 
-            if self.cat != tmp[2]:
+            if tmp[2] not in self.cat:
                 continue
             # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
             b = [ann['frame'], ann['track_id'], ann['category_id']] \
@@ -316,6 +321,9 @@ class KittiMOTDataset(data.Dataset):
         ious = vectorized_iou(bbox_pred[:, 4:8], bbox_gt[:, 4:8])
         # cost matrix
         C = 1.0 - ious
+        # category mask
+        cat_mask = np.not_equal(bbox_pred[:, 2:3], bbox_gt[:, 2:3].T)
+        C[cat_mask] = 100. # assign high cost to ensure it is not assigned
         # optimal assignment
         row_ind, col_ind = linear_sum_assignment(C)
 
@@ -455,6 +463,10 @@ class KittiMOTDataset(data.Dataset):
             if random_transforms_hf:
                 im = cv2.flip(im, 1)
 
+            # apply time reversal transform
+            if random_transforms_tr:
+                bbox_gt_fr[:, 0] = input_info[1][-1] - bbox_gt_fr[:, 0] + input_info[1][0]
+
             # run forward pass through detector
             detector_ops = self.detector.run(im)
             # apply detector losses
@@ -463,39 +475,41 @@ class KittiMOTDataset(data.Dataset):
             #    loss, loss_stats = self.det_loss(detector_ops['outputs'], det_labels)
             #    tot_loss += loss.mean() / self.cur_win_size
 
-            # object classes = {1: 'Pedestrian', 2: 'Car', 3: 'Cyclist'}
-            # [num_dets, (alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score)]
-            detections = detector_ops['results'][self.class_dict[self.cat]]
-            # find bboxes for the frame
-            # [fr, -1, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
-            bbox_pred_fr = np.zeros((detections.shape[0], 16), dtype=np.float32)
-            bbox_pred_fr[:, 0] = fr
-            bbox_pred_fr[:, 1] = -1
-            bbox_pred_fr[:, 2] = self.class_dict[self.cat]
-            bbox_pred_fr[:, 3:] = detections
+            for cat in self.cat:
+                # object classes = {1: 'Pedestrian', 2: 'Car', 3: 'Cyclist'}
+                # [num_dets, (alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score)]
+                detections = detector_ops['results'][self.class_dict[cat]]
+                # find bboxes for the frame
+                # [fr, -1, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
+                bbox_pred_fr = np.zeros((detections.shape[0], 16), dtype=np.float32)
+                bbox_pred_fr[:, 0] = fr
+                bbox_pred_fr[:, 1] = -1
+                bbox_pred_fr[:, 2] = self.class_dict[cat]
+                bbox_pred_fr[:, 3:] = detections
 
-            # apply time reversal transform
-            if random_transforms_tr:
-                bbox_pred_fr[:, 0] = input_info[1][-1] - bbox_pred_fr[:, 0] + input_info[1][0]
-                bbox_gt_fr[:, 0] = input_info[1][-1] - bbox_gt_fr[:, 0] + input_info[1][0]
+                # apply time reversal transform
+                if random_transforms_tr:
+                    bbox_pred_fr[:, 0] = input_info[1][-1] - bbox_pred_fr[:, 0] + input_info[1][0]
 
-            # assign GT track ids to each predicted bbox
-            bbox_pred_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
+                # assign GT track ids to each predicted bbox
+                bbox_pred_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
 
-            # random dropout of bboxes
-            if self.random_transforms:
-                ret_idx = [not self._decision(self.dropout_ratio) for _ in range(bbox_pred_fr.shape[0])]
-                bbox_pred_fr = bbox_pred_fr[ret_idx, :]
+                # random dropout of bboxes
+                if self.random_transforms:
+                    ret_idx = [not self._decision(self.dropout_ratio) for _ in range(bbox_pred_fr.shape[0])]
+                    bbox_pred_fr = bbox_pred_fr[ret_idx, :]
 
-            # append to existing bboxes in the sequence
-            bbox_pred = np.concatenate((bbox_pred, bbox_pred_fr), axis=0)
+                # append to existing bboxes in the sequence
+                bbox_pred = np.concatenate((bbox_pred, bbox_pred_fr), axis=0)
+                im_feats.append(self.get_im_feats(detector_ops['outputs']['trk'], 
+                    bbox_pred_fr[:, 4:8], im.shape))
             bbox_gt = np.concatenate((bbox_gt, bbox_gt_fr), axis=0)
-            im_feats.append(self.get_im_feats(detector_ops['outputs']['trk'], 
-                bbox_pred_fr[:, 4:8], im.shape))
 
         # features for tracker
         # image features
         im_feats = torch.cat(im_feats, 0)
+        # one-hot category IDs
+        one_hot_feats = self._convert_to_tensor(np.eye(len(self.class_dict), dtype=np.float32)[bbox_pred[:, 2].astype('int64')])
         # [score, xc, yc, w, h]
         two_d_feats = self._convert_to_tensor(np.stack((bbox_pred[:, 15], (bbox_pred[:, 4] + bbox_pred[:, 6])/2.0, 
             (bbox_pred[:, 5] + bbox_pred[:, 7])/2.0, bbox_pred[:, 6] - bbox_pred[:, 4], bbox_pred[:, 7] - bbox_pred[:, 5]), axis=1))
@@ -505,8 +519,8 @@ class KittiMOTDataset(data.Dataset):
         sp_coords = bbox_pred[:, 11:14]
         temp_coords = self.get_fr_feats(bbox_pred[:, 0:1])
         sptemp_coords = self._convert_to_tensor(np.concatenate((sp_coords, temp_coords), axis=1))
-        # (num_dets, num_img_feats + 5 + 4 + 5)
-        features = torch.cat((im_feats, two_d_feats, three_d_feats, sptemp_coords), 1)
+        # (num_dets, num_img_feats + 3 + 5 + 4 + 5)
+        features = torch.cat((im_feats, one_hot_feats, two_d_feats, three_d_feats, sptemp_coords), 1)
 
         if features.size()[0] != 0:
             features = (features - self.mean) / self.std # normalize/standardize features

@@ -37,7 +37,7 @@ class TrackMPNN(nn.Module):
         I_edge = torch.diag(torch.diag(edge_adj.to_dense())).to_sparse() # (N', N')
 
         if x.size()[0] > 0:
-            x = torch.cat((self.input_norm(x[:, :self.nimgfeatures]), x[:, self.nimgfeatures:]), dim=1) # (N'-N, nfeatures)
+            #x = torch.cat((self.input_norm(x[:, :self.nimgfeatures]), x[:, self.nimgfeatures:]), dim=1) # (N'-N, nfeatures)
             x = self.input_transform(x) # (N'-N, nhidden)
 
             h_update = torch.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhidden)

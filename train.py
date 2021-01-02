@@ -49,6 +49,7 @@ def train(model, epoch):
         if X_seq.size()[1] == 0:
             print('No detections available for sequence...')
             continue
+        X_seq = X_seq[:, :, args.num_img_feats:args.num_img_feats+3+5+4]
         y_seq = bbox_pred[:, :, :2]
 
         # train the network
@@ -167,6 +168,7 @@ def val(model, epoch):
         if X_seq.size()[1] == 0:
             print('No detections available for sequence...')
             continue
+        X_seq = X_seq[:, :, args.num_img_feats:args.num_img_feats+3+5+4]
         y_seq = bbox_pred[:, :, :2]
 
         # initaialize output array tracks to -1s
@@ -283,7 +285,10 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeatures=args.num_img_feats + 5 + 4 + 5, nimgfeatures=args.num_img_feats, 
+    #model = TrackMPNN(nfeatures=args.num_img_feats + 3 + 5 + 4 + 5, nimgfeatures=args.num_img_feats, 
+    #    nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
+    # im_feats (args.num_img_feats), one_hot_feats (3), two_d_feats (5), three_d_feats (4), sptemp_coords (5)
+    model = TrackMPNN(nfeatures=3 + 5 + 4, nimgfeatures=args.num_img_feats, 
         nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
 
     if args.snapshot is not None:

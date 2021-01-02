@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser('Options for training Track-MPNN models in PyTo
 parser.add_argument('--dataset-root-path', type=str, default='/home/akshay/data/kitti-mot', help='path to dataset')
 parser.add_argument('--output-dir', type=str, default=None, help='output directory for model and logs')
 parser.add_argument('--snapshot', type=str, default=None, help='use a pre-trained model snapshot')
-parser.add_argument('--category', type=str, default='Car', metavar='cat', help='Category to train model for: Pedestrian/Car/Cyclist')
+parser.add_argument('--category', type=str, default='All', metavar='cat', help='Category to train model for: Pedestrian/Car/All')
 parser.add_argument('--cur-win-size', type=int, default=5, metavar='CWS', help='number of timesteps in curring processing window')
 parser.add_argument('--ret-win-size', type=int, default=10, metavar='RWS', help='number of timesteps in the past to be retained for association')
 parser.add_argument('--hungarian', action='store_true', default=False, help='decode tracks using frame-by-frame Hungarian algorithm')
@@ -33,7 +33,7 @@ parser.add_argument('--random-transforms', action='store_true', default=False, h
 args = parser.parse_args()
 
 # setup args
-if args.category not in ['Pedestrian', 'Car', 'Cyclist']:
+if args.category not in ['Pedestrian', 'Car', 'All']:
     assert False, 'Unrecognized object category!'
 args.tp_classifier = not args.no_tp_classifier
 args.cuda = not args.no_cuda and torch.cuda.is_available()
