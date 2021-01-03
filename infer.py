@@ -11,9 +11,12 @@ from utils.infer_options import args
 
 
 kwargs_infer = {'batch_size': 1, 'shuffle': False}
-det_snapshot = os.path.join(os.path.dirname(args.snapshot), 'dla-detector_' + args.snapshot[-8:])
-infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.category, args.cur_win_size, args.ret_win_size, 
-                args.num_img_feats, det_snapshot, False, args.cuda), **kwargs_infer)
+if 'vis' in args.feats:
+    vis_snapshot = os.path.join(os.path.dirname(args.snapshot), 'vis-net_' + args.snapshot[-8:])
+else:
+    vis_snapshot = None
+infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
+    args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
@@ -88,8 +91,14 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeatures=args.num_img_feats + 3 + 5 + 4 + 5, nimgfeatures=args.num_img_feats, 
-        nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
+    num_features = 3# for one-hot category IDs
+    if '2d' in args.feats:
+        num_features += 5
+    if 'temp' in args.feats:
+        num_features += 2
+    if 'vis' in args.feats:
+        num_features += 4
+    model = TrackMPNN(nfeatures=num_features, nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
         model.cuda()

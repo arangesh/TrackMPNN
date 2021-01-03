@@ -11,7 +11,6 @@ import torch.optim as optim
 
 from models.track_mpnn import TrackMPNN
 from models.loss import create_targets, FocalLoss, CELoss
-from models.dla.model import save_model
 from dataset.kitti_mot import KittiMOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics, compute_map
@@ -20,11 +19,11 @@ from utils.gradients import plot_grad_flow
 
 
 kwargs_train = {'batch_size': 1, 'shuffle': True}
-train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.cur_win_size, args.ret_win_size, args.num_img_feats, 
-                os.path.join('.', 'weights', 'model_last_kitti.pth'), args.random_transforms, args.cuda), **kwargs_train)
+train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
+    args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
 kwargs_val = {'batch_size': 1, 'shuffle': False}
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.cur_win_size, args.ret_win_size, args.num_img_feats, 
-                None, False, args.cuda), **kwargs_val)
+val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
+    args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
@@ -43,13 +42,13 @@ def random_seed(seed_value, use_cuda):
 def train(model, epoch):
     epoch_loss_d, epoch_loss_c, epoch_loss_f, epoch_loss, epoch_f1 = list(), list(), list(), list(), list()
     model.train() # set TrackMPNN model to train mode
-    train_loader.dataset.detector.opt.split = 'train' # set split to train
+    if 'vis' in args.feats:
+        train_loader.dataset.embed_net.train()
     for b_idx, (X_seq, bbox_pred, _, loss_d) in enumerate(train_loader):
         # if no detections in sequence
         if X_seq.size()[1] == 0:
             print('No detections available for sequence...')
             continue
-        X_seq = X_seq[:, :, args.num_img_feats:args.num_img_feats+3+5+4]
         y_seq = bbox_pred[:, :, :2]
 
         # train the network
@@ -117,12 +116,16 @@ def train(model, epoch):
         epoch_loss.append(loss.item())
         loss.backward()
         optimizer_trk.step()
-        train_loader.dataset.optimizer.step()
+        if 'vis' in args.feats:
+            train_loader.dataset.optimizer.step()
 
-        # save gradient flow image through detector and tracker model
+        # save gradient flow image through embedding net and tracker model
         if (b_idx % 100 == 0) and args.plot_gradients:
-            plot_grad_flow([list(param for param in train_loader.dataset.detector.model.named_parameters() if 'trk' in param[0]),
-                model.named_parameters()], os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
+            if 'vis' in args.feats:
+                plot_grad_flow([list(param for param in train_loader.dataset.embed_net.named_parameters() if 'trk' in param[0]),
+                    model.named_parameters()], os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
+            else:
+                plot_grad_flow([model.named_parameters()], os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
 
         if b_idx % args.log_schedule == 0:
             print('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}'.format(
@@ -138,8 +141,8 @@ def train(model, epoch):
     avg_loss_f = statistics.mean(epoch_loss_f)
     avg_loss = statistics.mean(epoch_loss)
     avg_f1 = statistics.mean(epoch_f1)
-    print("------------------------\nAverage detector loss for epoch = {:.2f}".format(avg_loss_d))
-    f_log.write("------------------------\nAverage detector loss for epoch = {:.2f}\n".format(avg_loss_d))
+    print("------------------------\nAverage embedding loss for epoch = {:.2f}".format(avg_loss_d))
+    f_log.write("------------------------\nAverage embedding loss for epoch = {:.2f}\n".format(avg_loss_d))
     print("Average cross-entropy loss for epoch = {:.2f}".format(avg_loss_c))
     f_log.write("Average cross-entropy loss for epoch = {:.2f}\n".format(avg_loss_c))
     print("Average focal loss for epoch = {:.2f}".format(avg_loss_f))
@@ -158,9 +161,10 @@ def val(model, epoch):
     epoch_f1 = list()
     accs = []
     model.eval() # set TrackMPNN model to eval mode
-    val_loader.dataset.detector = train_loader.dataset.detector # use trained detector for the val loader
-    train_loader.dataset.detector = None # set trained detector to None to save memory
-    val_loader.dataset.detector.opt.split = 'val' # set split to val
+    if 'vis' in args.feats:
+        val_loader.dataset.embed_net = train_loader.dataset.embed_net # use trained embedding net for the val loader
+        train_loader.dataset.embed_net = None # set trained embedding net to None to save memory
+        val_loader.dataset.embed_net.eval()
 
     bbox_pred_dict, bbox_gt_dict = {}, {} # initialize dictionaries for computing mAP
     for b_idx, (X_seq, bbox_pred, bbox_gt, _) in enumerate(val_loader):
@@ -168,7 +172,6 @@ def val(model, epoch):
         if X_seq.size()[1] == 0:
             print('No detections available for sequence...')
             continue
-        X_seq = X_seq[:, :, args.num_img_feats:args.num_img_feats+3+5+4]
         y_seq = bbox_pred[:, :, :2]
 
         # initaialize output array tracks to -1s
@@ -270,12 +273,14 @@ def val(model, epoch):
     # now save the model if it has better MOTA than the best model seen so forward
     if val_mota > best_mota:
         best_mota = val_mota
-        # save the TrackMPNN model and the detector
+        # save the TrackMPNN model and the embedding net
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
-        save_model(os.path.join(args.output_dir, 'dla-detector_' + '%.4d' % (epoch,) + '.pth'), epoch, val_loader.dataset.detector.model, optimizer=None)
+        if 'vis' in args.feats:
+            save_model(os.path.join(args.output_dir, 'vis-net_' + '%.4d' % (epoch,) + '.pth'), epoch, val_loader.dataset.embed_net, optimizer=None)
 
-    train_loader.dataset.detector = val_loader.dataset.detector # copy back the trained detector from the val loader
-    val_loader.dataset.detector = None # set detector from val loader to None to save memory
+    if 'vis' in args.feats:
+        train_loader.dataset.embed_net = val_loader.dataset.embed_net # copy back the trained embedding net from the val loader
+        val_loader.dataset.embed_net = None # set embedding net from val loader to None to save memory
 
     return val_f1, val_mota, val_map
 
@@ -285,12 +290,14 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    #model = TrackMPNN(nfeatures=args.num_img_feats + 3 + 5 + 4 + 5, nimgfeatures=args.num_img_feats, 
-    #    nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
-    # im_feats (args.num_img_feats), one_hot_feats (3), two_d_feats (5), three_d_feats (4), sptemp_coords (5)
-    model = TrackMPNN(nfeatures=3 + 5 + 4, nimgfeatures=args.num_img_feats, 
-        nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
-
+    num_features = 3 # for one-hot category IDs
+    if '2d' in args.feats:
+        num_features += 5
+    if 'temp' in args.feats:
+        num_features += 2
+    if 'vis' in args.feats:
+        num_features += 4
+    model = TrackMPNN(nfeatures=num_features, nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
@@ -308,7 +315,7 @@ if __name__ == '__main__':
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)
-    ax1.plot([], 'r', label='Detector loss')
+    ax1.plot([], 'r', label='Embedding loss')
     ax1.plot([], 'g', label='Cross-entropy loss')
     ax1.plot([], 'b', label='Focal loss')
     ax1.plot([], 'k', label='Total loss')
@@ -338,7 +345,7 @@ if __name__ == '__main__':
         train_f1.append(avg_f1)
 
         # plot the loss
-        ax1.plot(train_loss_d, 'r', label='Detector loss')
+        ax1.plot(train_loss_d, 'r', label='Embedding loss')
         ax1.plot(train_loss_c, 'g', label='Cross-entropy loss')
         ax1.plot(train_loss_f, 'b', label='Focal loss')
         ax1.plot(train_loss, 'k', label='Total loss')

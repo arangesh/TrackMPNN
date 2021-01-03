@@ -4,6 +4,7 @@ import random
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 import cv2
+import PIL
 
 import torch
 from torch.utils import data
@@ -11,11 +12,7 @@ import torch.optim as optim
 import torchvision.transforms as transforms
 
 from utils.misc import vectorized_iou
-from models.dla.ddd import DddDetector
-from models.dla.loss import DddLoss
-from models.dla.utils.image import gaussian_radius, draw_umich_gaussian, draw_msra_gaussian
-from models.dla.utils.image import get_affine_transform, affine_transform
-from models.dla.utils.ddd_utils import compute_box_3d
+from models.dla.pose_dla_dcn import get_pose_net
 from models.loss import EmbeddingLoss
 
 
@@ -63,7 +60,7 @@ def store_kitti_results(bbox_pred, y_out, class_dict, output_path):
 
 
 class KittiMOTDataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', cat='All', cur_win_size=5, ret_win_size=10, num_img_feats=4, snapshot=None, random_transforms=False, cuda=True):
+    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='centertrack', feats='2d+temp+vis', cur_win_size=5, ret_win_size=10, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -72,13 +69,14 @@ class KittiMOTDataset(data.Dataset):
 
         self.split = split
         self.class_dict = {'Pedestrian': 1, 'Car': 2, 'Cyclist': 3}
-        if cat == 'All':
-            self.cat = ['Pedestrian', 'Car'] # KITTI MOT does not have enough labels for Cyclists
-        else:
-            self.cat = [cat]
+        self.cat = cat
+        self.detections = detections
+        self.feats = feats
         self.cur_win_size = cur_win_size
         self.ret_win_size = ret_win_size
-        self.num_img_feats = num_img_feats # number of image based features to be used for tracking
+        self.num_vis_feats = 4 # number of visual features to be used for tracking
+        self.input_h, self.input_w = 384, 1280
+        self.down_ratio = 4
         self.snapshot = snapshot
         self.random_transforms = random_transforms
         self.cuda = cuda
@@ -88,44 +86,58 @@ class KittiMOTDataset(data.Dataset):
         if self.split == 'test':
             self.im_path = os.path.join(dataset_root_path, 'testing', 'image_02')
             self.label_path = None
+            self.detections_path = os.path.join(dataset_root_path, 'testing', self.detections + '_detections') 
         else:
             self.im_path = os.path.join(dataset_root_path, 'training', 'image_02')
             self.label_path = os.path.join(dataset_root_path, 'training', 'label_02')
+            self.detections_path = os.path.join(dataset_root_path, 'training', self.detections + '_detections')
 
         # initialize detector with necessary heads and pretrained weights
-        if self.split == 'train':
-            self.detector = DddDetector(self.snapshot, self.cuda, 'train', num_img_feats=num_img_feats, dataset='kitti')
-            self.det_loss = DddLoss(self.detector.opt)
-            self.embed_loss = EmbeddingLoss()
-            # optimizer for detector
-            self.optimizer = optim.Adam(list(param for (name, param) in self.detector.model.named_parameters() if 'trk' in name), lr=1.25e-5)
-        elif self.split == 'val':
-            # do not initialize a second detector for val (will use the same one as train)
-            self.detector = None
-        elif self.split == 'test':
-            self.detector = DddDetector(self.snapshot, self.cuda, 'test', num_img_feats=num_img_feats, dataset='kitti')
+        if 'vis' in self.feats:
+            if self.split == 'train':
+                self.embed_net = get_pose_net(num_layers=34, heads={'trk': 4}, head_conv=256, down_ratio=self.down_ratio)
+                if self.snapshot is not None:
+                     self.embed_net.load_state_dict(torch.load(self.snapshot), strict=True)
+                if self.cuda:
+                    self.embed_net.cuda()
+                self.embed_loss = EmbeddingLoss()
+                # optimizer for detector
+                self.optimizer = optim.Adam(self.embed_net.parameters(), lr=1.25e-5)
+            elif self.split == 'val':
+                # do not initialize a second detector for val (will use the same one as train)
+                self.embed_net = None
+            elif self.split == 'test':
+                self.embed_net = get_pose_net(num_layers=34, heads={'trk': 4}, head_conv=256, down_ratio=self.down_ratio)
+                if self.snapshot is not None:
+                     self.embed_net.load_state_dict(torch.load(self.snapshot), strict=True)
+                if self.cuda:
+                    self.embed_net.cuda()
 
         # get tracking batch information 
         self.chunks = self.get_tracking_chunks()
         # load mean values for each feature
-        mean = [0.0 for _ in range(self.num_img_feats)] # image features
-        mean = mean + [0.5, 0.5, 0.5] # one-hot category IDs
-        mean = mean + [0.90] + [621, 187.5, 621, 187.5] # 2d features
-        mean = mean + [1.53, 1.63, 3.88] + [0.0] # 3d features
-        mean = mean + [0.0 for _ in range(1)] # point features (X)
-        mean = mean + [0.8 for _ in range(1)] # point features (Y)
-        mean = mean + [35.70 for _ in range(1)] # point features (Z)
-        mean = mean + [0.0 for _ in range(2*1)] # time feature (T)
+        mean = [0.5, 0.5, 0.5] # one-hot category IDs
+        if '2d' in self.feats:
+            if self.detections == 'centertrack':
+                mean = mean + [0.78] + [544.57, 171.58, 71.54, 61.50] # 2d features
+            elif self.detections == 'rrc':
+                mean = mean + [0.91] + [577.11, 178.39, 102.48, 58.36] # 2d features
+        if 'temp' in self.feats:
+            mean = mean + [0.0 for _ in range(2*1)] # temporal features
+        if 'vis' in self.feats:
+            mean = mean + [0.5 for _ in range(self.num_vis_feats)] # visual features
         self.mean = self._convert_to_tensor([mean])
         # load std values for each feature
-        std = [1.0 for _ in range(self.num_img_feats)] # image features
-        std = std + [1.0, 1.0, 1.0] # one-hot category IDs
-        std = std + [0.20] + [1242.0, 375.0, 1242.0, 375.0] # 2d features
-        std = std + [0.14, 0.10, 0.43] + [np.pi] # 3d features
-        std = std + [123.95 for _ in range(1)] # point features (X)
-        std = std + [1.0 for _ in range(1)] # point features (Y)
-        std = std + [395.67 for _ in range(1)] # point features (Z)
-        std = std + [1.0 for _ in range(2*1)] # time features (T)
+        std = [0.5, 0.5, 0.5] # one-hot category IDs
+        if '2d' in self.feats:
+            if self.detections == 'centertrack':
+                std = std + [0.14] + [285.65, 13.94, 69.92, 47.39] # 2d features
+            elif self.detections == 'rrc':
+                std = std + [0.21] + [301.75, 11.55, 78.83, 44.66] # 2d features
+        if 'temp' in self.feats:
+            std = std + [1.0 for _ in range(2*1)] # temporal features
+        if 'vis' in self.feats:
+            std = std + [0.5 for _ in range(self.num_vis_feats)] # visual features
         self.std = self._convert_to_tensor([std])
 
         print('Finished preparing ' + self.split + ' dataset!')
@@ -151,22 +163,6 @@ class KittiMOTDataset(data.Dataset):
         Function that returns True with probability
         """
         return random.random() < probability
-
-    def _convert_alpha(self, alpha):
-        return alpha
-
-    def _alpha_to_8(self, alpha):
-        # return [alpha, 0, 0, 0, 0, 0, 0, 0]
-        ret = [0, 0, 0, 1, 0, 0, 0, 1]
-        if alpha < np.pi / 6. or alpha > 5 * np.pi / 6.:
-            r = alpha - (-0.5 * np.pi)
-            ret[1] = 1
-            ret[2], ret[3] = np.sin(r), np.cos(r)
-        if alpha > -np.pi / 6. or alpha < -5 * np.pi / 6.:
-            r = alpha - (0.5 * np.pi)
-            ret[5] = 1
-            ret[6], ret[7] = np.sin(r), np.cos(r)
-        return ret
 
     def get_tracking_chunks(self):
         seqs = sorted(os.listdir(self.im_path))
@@ -265,7 +261,7 @@ class KittiMOTDataset(data.Dataset):
                     ann['rotation_y'] = -np.pi/2 + ann['rotation_y']
             annotations.append(ann)
 
-            if tmp[2] not in self.cat:
+            if self.cat != 'All' and self.cat != tmp[2]:
                 continue
             # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
             b = [ann['frame'], ann['track_id'], ann['category_id']] \
@@ -274,9 +270,80 @@ class KittiMOTDataset(data.Dataset):
             bbox_gt = np.concatenate((bbox_gt, np.array([b], dtype=np.float32)), axis=0)
         return annotations, bbox_gt
 
-    def get_im_feats(self, feat_maps, bboxes, im_shape):
+    def load_detections(self, seq, fr, im_shape, random_transforms_hf):
         """
-        Extract image features from bbox center location
+        Values    Name      Description
+        ----------------------------------------------------------------------------
+           1    frame        Frame within the sequence where the object appearers
+           1    track id     Unique tracking id of this object within this sequence
+           1    type         Describes the type of object: 'Car', 'Van', 'Truck',
+                             'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram',
+                             'Misc' or 'DontCare'
+           1    truncated    Integer (0,1,2) indicating the level of truncation.
+                             Note that this is in contrast to the object detection
+                             benchmark where truncation is a float in [0,1].
+           1    occluded     Integer (0,1,2,3) indicating occlusion state:
+                             0 = fully visible, 1 = partly occluded
+                             2 = largely occluded, 3 = unknown
+           1    alpha        Observation angle of object, ranging [-pi..pi]
+           4    bbox         2D bounding box of object in the image (0-based index):
+                             contains left, top, right, bottom pixel coordinates
+           3    dimensions   3D object dimensions: height, width, length (in meters)
+           3    location     3D object location x,y,z in camera coordinates (in meters)
+           1    rotation_y   Rotation ry around Y-axis in camera coordinates [-pi..pi]
+           1    score        Only for results: Float, indicating confidence in
+                             detection, needed for p/r curves, higher is better.
+        """
+        bbox_pred = np.zeros((0, 16), dtype=np.float32)
+        if self.detections_path is None:
+            return bbox_pred
+
+        cats = ['Pedestrian', 'Car', 'Cyclist', 'Van', 'Truck',  'Person',
+        'Tram', 'Misc', 'DontCare']
+        cat_ids = {cat: i + 1 for i, cat in enumerate(cats)}
+        det_file = open(os.path.join(self.detections_path, seq, '%.4d.txt' % (fr,)), 'r')
+        for line in det_file:
+            tmp = line[:-1].split(',')
+
+            ann = { 'frame': fr,
+                    'category_id': cat_ids[tmp[0]],
+                    'bbox': [float(tmp[1]), float(tmp[2]), float(tmp[3]), float(tmp[4])],
+                    'score': float(tmp[5])}
+            if random_transforms_hf:
+                # transform GT bboxes to account for horizontal flip
+                ann['bbox'] = [im_shape[1]-ann['bbox'][2]-1, ann['bbox'][1], 
+                               im_shape[1]-ann['bbox'][0]-1, ann['bbox'][3]] # x1 and x2
+
+            if self.cat != 'All' and self.cat != tmp[0]:
+                continue
+            # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
+            b = [ann['frame'], -1, ann['category_id']] \
+                + [-10] + ann['bbox'] + [-1, -1, -1] \
+                + [-1000, -1000, -1000] + [-10] + [ann['score']]
+            bbox_pred = np.concatenate((bbox_pred, np.array([b], dtype=np.float32)), axis=0)
+        return bbox_pred
+
+    def get_embed_net_outputs(self, im):
+        """
+        Run forward pass through embedding network
+        """
+        # resizing transform
+        _transform = transforms.Resize((self.input_h, self.input_w))
+        # convert PIL Image (H, W, C), uint8 --> torch tensor (C, H, W), float32
+        _to_tensor = transforms.ToTensor()
+        # normalization transform for input images
+        _normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+
+        im_tensor = _normalize(_to_tensor(_transform(im)))
+        if self.cuda:
+            im_tensor = im_tensor.cuda()
+
+        outputs = self.embed_net(im_tensor.unsqueeze(0))[-1]
+        return outputs
+
+    def get_vis_feats(self, feat_maps, bboxes, im_shape):
+        """
+        Extract visual features from bbox center location
         """
         feats = []
         for bbox in bboxes:
@@ -284,20 +351,20 @@ class KittiMOTDataset(data.Dataset):
             c_x = (bbox[0] + bbox[2]) / 2.0
             c_y = (bbox[1] + bbox[3]) / 2.0
             # account for image resizing
-            c_x = (c_x * self.detector.opt.input_w) / im_shape[1]
-            c_y = (c_y * self.detector.opt.input_h) / im_shape[0]
+            c_x = (c_x * self.input_w) / im_shape[1]
+            c_y = (c_y * self.input_h) / im_shape[0]
             # divide the center by downsampling ratio of the model
-            c_x = int(c_x / self.detector.opt.down_ratio)
-            c_y = int(c_y / self.detector.opt.down_ratio)
+            c_x = int(c_x / self.down_ratio)
+            c_y = int(c_y / self.down_ratio)
 
             # extract features from center
             feats.append(feat_maps[:, :, c_y, c_x])
         if len(feats) == 0:
-            return self._convert_to_tensor(np.zeros((0, self.num_img_feats), dtype='float32'))
+            return self._convert_to_tensor(np.zeros((0, self.num_vis_feats), dtype='float32'))
         feats = torch.cat(feats, dim=0)
         return feats
 
-    def get_fr_feats(self, frames):
+    def get_temp_feats(self, frames):
         """
         Extract bounded, cyclic features representing frame
         """
@@ -336,103 +403,6 @@ class KittiMOTDataset(data.Dataset):
 
         return bbox_pred
 
-    def create_detector_labels(self, anns, im_shape):
-        cat_ids = {1:0, 2:1, 3:2, 4:-3, 5:-3, 6:-2, 7:-99, 8:-99, 9:-1}
-        max_objs = 50
-        num_classes = self.detector.opt.num_classes
-
-        height, width = im_shape[0:2]
-        c = np.array([width / 2, height / 2], dtype=np.float32)
-        if self.detector.opt.keep_res:
-            inp_height, inp_width = self.detector.opt.input_h, self.detector.opt.input_w
-            s = np.array([inp_width, inp_height], dtype=np.int32)
-        else:
-            s = np.array([width, height], dtype=np.int32)
-        out_height = self.detector.opt.output_h
-        out_width = self.detector.opt.output_w
-        trans_output = get_affine_transform(c, s, 0, [out_width, out_height])
-
-        hm = np.zeros(
-            (num_classes, self.detector.opt.output_h, self.detector.opt.output_w), dtype=np.float32)
-        wh = np.zeros((max_objs, 2), dtype=np.float32)
-        reg = np.zeros((max_objs, 2), dtype=np.float32)
-        dep = np.zeros((max_objs, 1), dtype=np.float32)
-        rotbin = np.zeros((max_objs, 2), dtype=np.int64)
-        rotres = np.zeros((max_objs, 2), dtype=np.float32)
-        dim = np.zeros((max_objs, 3), dtype=np.float32)
-        ind = np.zeros((max_objs), dtype=np.int64)
-        reg_mask = np.zeros((max_objs), dtype=np.uint8)
-        rot_mask = np.zeros((max_objs), dtype=np.uint8)
-
-        num_objs = min(len(anns), max_objs)
-        draw_gaussian = draw_msra_gaussian if self.detector.opt.mse_loss else \
-                        draw_umich_gaussian
-        gt_det = []
-        for k in range(num_objs):
-            ann = anns[k]
-            bbox = np.array(ann['bbox'], dtype=np.float32)
-            cls_id = int(cat_ids[ann['category_id']])
-            if cls_id <= -99:
-                continue
-            bbox[:2] = affine_transform(bbox[:2], trans_output)
-            bbox[2:] = affine_transform(bbox[2:], trans_output)
-            bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, self.detector.opt.output_w - 1)
-            bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, self.detector.opt.output_h - 1)
-            h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
-            if h > 0 and w > 0:
-                radius = gaussian_radius((h, w))
-                radius = max(0, int(radius))
-                ct = np.array(
-                    [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
-                ct_int = ct.astype(np.int32)
-                if cls_id < 0:
-                    ignore_id = [_ for _ in range(num_classes)] \
-                                if cls_id == - 1 else  [- cls_id - 2]
-                    if self.detector.opt.rect_mask:
-                        hm[ignore_id, int(bbox[1]): int(bbox[3]) + 1, 
-                           int(bbox[0]): int(bbox[2]) + 1] = 0.9999
-                    else:
-                        for cc in ignore_id:
-                            draw_gaussian(hm[cc], ct, radius)
-                        hm[ignore_id, ct_int[1], ct_int[0]] = 0.9999
-                    continue
-                draw_gaussian(hm[cls_id], ct, radius)
-
-                wh[k] = 1. * w, 1. * h
-                gt_det.append([ct[0], ct[1], 1] + \
-                               self._alpha_to_8(self._convert_alpha(ann['alpha'])) + \
-                               [ann['depth']] + (np.array(ann['dim']) / 1).tolist() + [cls_id])
-                if self.detector.opt.reg_bbox:
-                    gt_det[-1] = gt_det[-1][:-1] + [w, h] + [gt_det[-1][-1]]
-                if 1:
-                    alpha = self._convert_alpha(ann['alpha'])
-                    # print('img_id cls_id alpha rot_y', img_path, cls_id, alpha, ann['rotation_y'])
-                    if alpha < np.pi / 6. or alpha > 5 * np.pi / 6.:
-                        rotbin[k, 0] = 1
-                        rotres[k, 0] = alpha - (-0.5 * np.pi)    
-                    if alpha > -np.pi / 6. or alpha < -5 * np.pi / 6.:
-                        rotbin[k, 1] = 1
-                        rotres[k, 1] = alpha - (0.5 * np.pi)
-                    dep[k] = ann['depth']
-                    dim[k] = ann['dim']
-                    # print('        cat dim', cls_id, dim[k])
-                    ind[k] = ct_int[1] * self.detector.opt.output_w + ct_int[0]
-                    reg[k] = ct - ct_int
-                    reg_mask[k] = 1
-                    rot_mask[k] = 1
-
-        ret = {'hm': hm, 'dep': dep, 'dim': dim, 'ind': ind, 
-               'rotbin': rotbin, 'rotres': rotres, 'reg_mask': reg_mask,
-               'rot_mask': rot_mask}
-        if self.detector.opt.reg_bbox:
-            ret.update({'wh': wh})
-        if self.detector.opt.reg_offset:
-            ret.update({'reg': reg})
-        # convert to tensor and add batch dimension
-        for k, v in ret.items():
-            ret[k] = self._convert_to_tensor(v).unsqueeze(0)
-        return ret
-
     def __getitem__(self, index):
         """Generates one sample of data"""
         # get information for loading tracking sample
@@ -446,85 +416,70 @@ class KittiMOTDataset(data.Dataset):
         # intiliaze empty arrays to store predicted and GT bboxes
         bbox_pred = np.zeros((0, 16), dtype=np.float32)
         bbox_gt = np.zeros((0, 16), dtype=np.float32)
-        im_feats = []
+        vis_feats = []
         tot_loss = self._convert_to_tensor(torch.tensor(0.0))
-        if self.split == 'train':
+        if self.split == 'train' and 'vis' in self.feats:
             self.optimizer.zero_grad()
 
         for fr in input_info[1]:
             # load image
-            im = cv2.imread(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
+            im = PIL.Image.open(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
+            # apply horizontal flip to image
+            if random_transforms_hf:
+                im = im.transpose(PIL.Image.FLIP_LEFT_RIGHT)
             
             # load GT annotations
             # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
-            annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], fr, im.shape, random_transforms_hf)
+            annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], fr, (im.size[1], im.size[0]), random_transforms_hf)
 
-            # apply horizontal flip transform
-            if random_transforms_hf:
-                im = cv2.flip(im, 1)
+            # load detections
+            # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
+            bbox_pred_fr = self.load_detections(input_info[0], fr, (im.size[1], im.size[0]), random_transforms_hf)
 
             # apply time reversal transform
             if random_transforms_tr:
                 bbox_gt_fr[:, 0] = input_info[1][-1] - bbox_gt_fr[:, 0] + input_info[1][0]
+                bbox_pred_fr[:, 0] = input_info[1][-1] - bbox_pred_fr[:, 0] + input_info[1][0]
 
-            # run forward pass through detector
-            detector_ops = self.detector.run(im)
-            # apply detector losses
-            #if self.split == 'train':
-            #    det_labels = self.create_detector_labels(annotations, im.shape)
-            #    loss, loss_stats = self.det_loss(detector_ops['outputs'], det_labels)
-            #    tot_loss += loss.mean() / self.cur_win_size
+            # assign GT track ids to each predicted bbox
+            bbox_pred_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
 
-            for cat in self.cat:
-                # object classes = {1: 'Pedestrian', 2: 'Car', 3: 'Cyclist'}
-                # [num_dets, (alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score)]
-                detections = detector_ops['results'][self.class_dict[cat]]
-                # find bboxes for the frame
-                # [fr, -1, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
-                bbox_pred_fr = np.zeros((detections.shape[0], 16), dtype=np.float32)
-                bbox_pred_fr[:, 0] = fr
-                bbox_pred_fr[:, 1] = -1
-                bbox_pred_fr[:, 2] = self.class_dict[cat]
-                bbox_pred_fr[:, 3:] = detections
+            # random dropout of bboxes
+            if self.random_transforms:
+                ret_idx = [not self._decision(self.dropout_ratio) for _ in range(bbox_pred_fr.shape[0])]
+                bbox_pred_fr = bbox_pred_fr[ret_idx, :]
 
-                # apply time reversal transform
-                if random_transforms_tr:
-                    bbox_pred_fr[:, 0] = input_info[1][-1] - bbox_pred_fr[:, 0] + input_info[1][0]
+            # get visual embeddings from bbox centers
+            if 'vis' in self.feats:
+                # run forward pass through detector
+                outputs = self.get_embed_net_outputs(im)
+                vis_feats.append(self.get_vis_feats(outputs['trk'], 
+                    bbox_pred_fr[:, 4:8], (im.size[1], im.size[0])))
 
-                # assign GT track ids to each predicted bbox
-                bbox_pred_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
-
-                # random dropout of bboxes
-                if self.random_transforms:
-                    ret_idx = [not self._decision(self.dropout_ratio) for _ in range(bbox_pred_fr.shape[0])]
-                    bbox_pred_fr = bbox_pred_fr[ret_idx, :]
-
-                # append to existing bboxes in the sequence
-                bbox_pred = np.concatenate((bbox_pred, bbox_pred_fr), axis=0)
-                im_feats.append(self.get_im_feats(detector_ops['outputs']['trk'], 
-                    bbox_pred_fr[:, 4:8], im.shape))
+            # append to existing bboxes in the sequence
+            bbox_pred = np.concatenate((bbox_pred, bbox_pred_fr), axis=0)
             bbox_gt = np.concatenate((bbox_gt, bbox_gt_fr), axis=0)
 
         # features for tracker
-        # image features
-        im_feats = torch.cat(im_feats, 0)
         # one-hot category IDs
-        one_hot_feats = self._convert_to_tensor(np.eye(len(self.class_dict), dtype=np.float32)[bbox_pred[:, 2].astype('int64')])
-        # [score, xc, yc, w, h]
-        two_d_feats = self._convert_to_tensor(np.stack((bbox_pred[:, 15], (bbox_pred[:, 4] + bbox_pred[:, 6])/2.0, 
-            (bbox_pred[:, 5] + bbox_pred[:, 7])/2.0, bbox_pred[:, 6] - bbox_pred[:, 4], bbox_pred[:, 7] - bbox_pred[:, 5]), axis=1))
-        # [h, w, l, rotation_y]
-        three_d_feats = self._convert_to_tensor(bbox_pred[:, [8, 9, 10, 14]])
-        # spatiotemporal features
-        sp_coords = bbox_pred[:, 11:14]
-        temp_coords = self.get_fr_feats(bbox_pred[:, 0:1])
-        sptemp_coords = self._convert_to_tensor(np.concatenate((sp_coords, temp_coords), axis=1))
-        # (num_dets, num_img_feats + 3 + 5 + 4 + 5)
-        features = torch.cat((im_feats, one_hot_feats, two_d_feats, three_d_feats, sptemp_coords), 1)
+        features = self._convert_to_tensor(np.eye(len(self.class_dict), dtype=np.float32)[bbox_pred[:, 2].astype('int64') - 1])
+        # 2d features [score, xc, yc, w, h]
+        if '2d' in self.feats:
+            two_d_feats = self._convert_to_tensor(np.stack((bbox_pred[:, 15], (bbox_pred[:, 4] + bbox_pred[:, 6])/2.0, 
+                (bbox_pred[:, 5] + bbox_pred[:, 7])/2.0, bbox_pred[:, 6] - bbox_pred[:, 4], bbox_pred[:, 7] - bbox_pred[:, 5]), axis=1))
+            features = torch.cat((features, two_d_feats), 1)
+        # temporal feats
+        if 'temp' in self.feats:
+            temp_feats = self._convert_to_tensor(self.get_temp_feats(bbox_pred[:, 0:1]))
+            features = torch.cat((features, temp_feats), 1)
+        # visual features
+        if 'vis' in self.feats:
+            vis_feats = torch.cat(vis_feats, 0)
+            features = torch.cat((features, vis_feats), 1)
 
         if features.size()[0] != 0:
             features = (features - self.mean) / self.std # normalize/standardize features
-            if self.split == 'train':
+            if self.split == 'train' and 'vis' in self.feats:
                 # add embedding loss
-                tot_loss += self.embed_loss(features[:, :self.num_img_feats], bbox_pred[:, :2].astype('int64'))
+                tot_loss += self.embed_loss(features[:, -self.num_vis_feats:], bbox_pred[:, :2].astype('int64'))
         return features.detach(), bbox_pred, bbox_gt, tot_loss
