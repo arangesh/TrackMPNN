@@ -16,7 +16,7 @@ if 'vis' in args.feats:
 else:
     vis_snapshot = None
 infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
-    args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
+    args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)

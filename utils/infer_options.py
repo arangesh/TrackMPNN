@@ -36,6 +36,7 @@ if os.path.exists(os.path.join(os.path.dirname(args.snapshot), 'config.json')):
     args.category = json_args['category']
     args.detections = json_args['detections']
     args.feats = json_args['feats']
+    args.embed_arch = json_args['embed_arch']
     args.cur_win_size = json_args['cur_win_size']
     args.ret_win_size = json_args['ret_win_size']
     args.no_tp_classifier = json_args['no_tp_classifier']

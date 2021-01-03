@@ -13,6 +13,7 @@ import torchvision.transforms as transforms
 
 from utils.misc import vectorized_iou
 from models.dla.pose_dla_dcn import get_pose_net
+from models.espv2.SegmentationModel import EESPNet_Seg
 from models.loss import EmbeddingLoss
 
 
@@ -60,7 +61,7 @@ def store_kitti_results(bbox_pred, y_out, class_dict, output_path):
 
 
 class KittiMOTDataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='centertrack', feats='2d+temp+vis', cur_win_size=5, ret_win_size=10, snapshot=None, random_transforms=False, cuda=True):
+    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='centertrack', feats='2d+temp+vis', embed_arch='espv2', cur_win_size=5, ret_win_size=10, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -72,11 +73,11 @@ class KittiMOTDataset(data.Dataset):
         self.cat = cat
         self.detections = detections
         self.feats = feats
+        self.embed_arch = embed_arch
         self.cur_win_size = cur_win_size
         self.ret_win_size = ret_win_size
         self.num_vis_feats = 4 # number of visual features to be used for tracking
         self.input_h, self.input_w = 384, 1280
-        self.down_ratio = 4
         self.snapshot = snapshot
         self.random_transforms = random_transforms
         self.cuda = cuda
@@ -95,19 +96,31 @@ class KittiMOTDataset(data.Dataset):
         # initialize detector with necessary heads and pretrained weights
         if 'vis' in self.feats:
             if self.split == 'train':
-                self.embed_net = get_pose_net(num_layers=34, heads={'trk': 4}, head_conv=256, down_ratio=self.down_ratio)
+                if self.embed_arch == 'espv2':
+                    self.down_ratio = 1
+                    self.embed_net = EESPNet_Seg(classes=4, s=2, pretrained='./weights/espnetv2_s_2.0.pth')
+                    # optimizer for detector
+                    self.optimizer = optim.Adam(self.embed_net.parameters(), 5e-4, (0.9, 0.999), eps=1e-08, weight_decay=5e-4)
+                elif self.embed_arch == 'dla34':
+                    self.down_ratio = 4
+                    self.embed_net = get_pose_net(num_layers=34, heads={'trk': 4}, head_conv=256, down_ratio=self.down_ratio)
+                    # optimizer for detector
+                    self.optimizer = optim.Adam(self.embed_net.parameters(), lr=1.25e-4)
                 if self.snapshot is not None:
                      self.embed_net.load_state_dict(torch.load(self.snapshot), strict=True)
                 if self.cuda:
                     self.embed_net.cuda()
                 self.embed_loss = EmbeddingLoss()
-                # optimizer for detector
-                self.optimizer = optim.Adam(self.embed_net.parameters(), lr=1.25e-5)
             elif self.split == 'val':
                 # do not initialize a second detector for val (will use the same one as train)
                 self.embed_net = None
             elif self.split == 'test':
-                self.embed_net = get_pose_net(num_layers=34, heads={'trk': 4}, head_conv=256, down_ratio=self.down_ratio)
+                if self.embed_arch == 'espv2':
+                    self.down_ratio = 1
+                    self.embed_net = EESPNet_Seg(classes=4, s=2, pretrained='./weights/espnetv2_s_2.0.pth')
+                elif self.embed_arch == 'dla34':
+                    self.down_ratio = 4
+                    self.embed_net = get_pose_net(num_layers=34, heads={'trk': 4}, head_conv=256, down_ratio=self.down_ratio)
                 if self.snapshot is not None:
                      self.embed_net.load_state_dict(torch.load(self.snapshot), strict=True)
                 if self.cuda:
@@ -339,6 +352,8 @@ class KittiMOTDataset(data.Dataset):
             im_tensor = im_tensor.cuda()
 
         outputs = self.embed_net(im_tensor.unsqueeze(0))[-1]
+        if self.embed_arch == 'dla34':
+            outputs = outputs['trk']
         return outputs
 
     def get_vis_feats(self, feat_maps, bboxes, im_shape):
@@ -453,7 +468,7 @@ class KittiMOTDataset(data.Dataset):
             if 'vis' in self.feats:
                 # run forward pass through detector
                 outputs = self.get_embed_net_outputs(im)
-                vis_feats.append(self.get_vis_feats(outputs['trk'], 
+                vis_feats.append(self.get_vis_feats(outputs, 
                     bbox_pred_fr[:, 4:8], (im.size[1], im.size[0])))
 
             # append to existing bboxes in the sequence

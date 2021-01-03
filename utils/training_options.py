@@ -13,6 +13,7 @@ parser.add_argument('--snapshot', type=str, default=None, help='use a pre-traine
 parser.add_argument('--category', type=str, default='All', help='Category to train model for: Pedestrian/Car/Cyclist/All')
 parser.add_argument('--detections', type=str, default='centertrack', help='Detections to use: centertrack/rrc')
 parser.add_argument('--feats', type=str, default='2d+temp+vis', help='Features used for tracking: any combination of 2d, temp and vis')
+parser.add_argument('--embed-arch', type=str, default='espv2', help='Architecture to use for the visual embedding network: espv2/dla34')
 parser.add_argument('--cur-win-size', type=int, default=5, help='number of timesteps in curring processing window')
 parser.add_argument('--ret-win-size', type=int, default=10, help='number of timesteps in the past to be retained for association')
 parser.add_argument('--hungarian', action='store_true', default=False, help='decode tracks using frame-by-frame Hungarian algorithm')
@@ -38,6 +39,8 @@ if args.category not in ['Pedestrian', 'Car', 'Cyclist', 'All']:
     assert False, 'Unrecognized object category!'
 if args.detections not in ['centertrack', 'rrc']:
     assert False, 'Unrecognized detections!'
+if args.embed_arch not in ['espv2', 'dla34']:
+    assert False, 'Unrecognized architecture specified for embedding network!'
 # setup args
 args.tp_classifier = not args.no_tp_classifier
 args.cuda = not args.no_cuda and torch.cuda.is_available()
