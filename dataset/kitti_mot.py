@@ -12,7 +12,7 @@ from torch.utils import data
 import torch.optim as optim
 import torchvision.transforms as transforms
 
-from utils.misc import vectorized_iou
+from utils.misc import vectorized_iou, vectorized_iom
 from models.dla.pose_dla_dcn import get_pose_net
 from models.espv2.SegmentationModel import EESPNet_Seg
 from models.loss import EmbeddingLoss, FairMOTLoss
@@ -71,7 +71,12 @@ class KittiMOTDataset(data.Dataset):
 
         self.split = split
         self.class_dict = {'Pedestrian': 1, 'Car': 2, 'Cyclist': 3}
-        self.cat = cat
+        if cat == 'All':
+            self.cats = self.class_dict.keys() + ['DontCare']
+        elif cat == 'Car':
+            self.cats = [cat, 'Van', 'DontCare']
+        else:
+            self.cats = [cat, 'DontCare']
         self.detections = detections
         self.feats = feats
         self.embed_arch = embed_arch
@@ -188,9 +193,10 @@ class KittiMOTDataset(data.Dataset):
         # seqs 13, 16 and 17 have very few or no cars at all
         if self.split == 'train':
             #seqs = seqs[0:16] + [seqs[17], seqs[19]]
-            seqs = seqs[0:11]
+            seqs = seqs[:11]
             print(seqs)
         elif self.split == 'val':
+            #seqs = [seqs[16], seqs[18], seqs[20]]
             seqs = seqs[11:]
             print(seqs)
         else:
@@ -281,8 +287,9 @@ class KittiMOTDataset(data.Dataset):
                     ann['rotation_y'] = -np.pi/2 + ann['rotation_y']
             annotations.append(ann)
 
-            if self.cat != 'All' and self.cat != tmp[2]:
+            if tmp[2] not in self.cats:
                 continue
+
             # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
             b = [ann['frame'], ann['track_id'], ann['category_id']] \
                 + [ann['alpha']] + ann['bbox'] + ann['dim'] \
@@ -334,8 +341,9 @@ class KittiMOTDataset(data.Dataset):
                 ann['bbox'] = [im_shape[1]-ann['bbox'][2]-1, ann['bbox'][1], 
                                im_shape[1]-ann['bbox'][0]-1, ann['bbox'][3]] # x1 and x2
 
-            if self.cat != 'All' and self.cat != tmp[0]:
+            if tmp[0] not in self.cats:
                 continue
+
             # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
             b = [ann['frame'], -1, ann['category_id']] \
                 + [-10] + ann['bbox'] + [-1, -1, -1] \
@@ -398,34 +406,71 @@ class KittiMOTDataset(data.Dataset):
         feats = np.concatenate((np.sin(feats), np.cos(feats)), axis=1)
         return feats
 
-    def get_track_ids(self, bbox_pred, bbox_gt, iou_thresh=0.5):
+    def get_track_ids(self, bbox_pred, bbox_gt, iou_thresh=0.5, iom_thresh=0.8):
         """
         Function to assign each detection a track_id based on GT or -1 if false positive
         bbox_pred: [N_pred, (fr, -1, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score)]
         bbox_gt: (N_gt, (fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score)]
         """
-        if bbox_pred.size == 0 or bbox_gt.size == 0:
-            return bbox_pred
+        if bbox_gt.size == 0:
+            return bbox_pred, bbox_gt
+
+        bbox_ignore = bbox_gt[bbox_gt[:, 2] == 9, :] # get DontCare regions in image
+        bbox_gt = bbox_gt[bbox_gt[:, 2] != 9, :] # remove DontCare regions from GT
+        bbox_van = bbox_gt[bbox_gt[:, 2] == 4, :] # get Van regions in image
+        bbox_gt = bbox_gt[bbox_gt[:, 2] != 4, :] # remove Van regions from GT
+
+        if bbox_pred.size == 0:
+            return bbox_pred, bbox_gt
 
         if not np.all(np.equal(bbox_pred[:, 0:1], bbox_gt[:, 0:1].T)):
             assert False, "Detections and GT boxes not from same frame!"
 
-        # calculate iou matrix
-        ious = vectorized_iou(bbox_pred[:, 4:8], bbox_gt[:, 4:8])
-        # indices sorted by iou
-        (rows, cols) = np.unravel_index(np.argsort(ious, axis=None), ious.shape)
+        # assign track IDs based on IoU with GT in descending order
+        if bbox_gt.size > 0:
+            # calculate iou matrix
+            ious = vectorized_iou(bbox_pred[:, 4:8], bbox_gt[:, 4:8])
+            # indices sorted by iou
+            (rows, cols) = np.unravel_index(np.argsort(ious, axis=None), ious.shape)
 
-        gt_assigned = -1*np.ones((ious.shape[1],))
-        for row, col in zip(rows[::-1], cols[::-1]):
-            if ious[row, col] >= iou_thresh:
-                if bbox_pred[row, 1] < 0: # if unassigned pred bbox
-                    if gt_assigned[col] < 0: # if unassigned GT bbox
-                        bbox_pred[row, 1] = bbox_gt[col, 1]
-                        gt_assigned[col] = 1
-                else: # if already assigned
+            gt_assigned = -1*np.ones((ious.shape[1],))
+            for row, col in zip(rows[::-1], cols[::-1]):
+                if ious[row, col] >= iou_thresh:
+                    if bbox_pred[row, 1] < 0: # if unassigned pred bbox
+                        if gt_assigned[col] < 0: # if unassigned GT bbox
+                            if bbox_pred[row, 2] == bbox_gt[col, 2]: # if belongs to the same class
+                                bbox_pred[row, 1] = bbox_gt[col, 1]
+                                gt_assigned[col] = 1
+
+        # discard predicted boxes in ignore region
+        if bbox_ignore.size > 0:
+            # calculate iom matrix
+            ioms = vectorized_iom(bbox_pred[:, 4:8], bbox_ignore[:, 4:8])
+            max_ioms = np.amax(ioms, axis=1)
+            retain_ids = []
+            for i in range(bbox_pred.shape[0]):
+                if bbox_pred[i, 1] < 0 and max_ioms[i] >= iom_thresh:
                     pass
+                else:
+                    retain_ids.append(i)
+            # remove predicted detections from DontCare regions
+            bbox_pred = bbox_pred[retain_ids, :]
 
-        return bbox_pred
+        # discard predicted boxes that are Vans
+        if bbox_van.size > 0:
+            # calculate iou matrix
+            ious = vectorized_iou(bbox_pred[:, 4:8], bbox_van[:, 4:8])
+            max_ious = np.amax(ious, axis=1)
+            retain_ids = []
+            for i in range(bbox_pred.shape[0]):
+                if bbox_pred[i, 1] < 0 and max_ious[i] >= iou_thresh:
+                    pass
+                else:
+                    retain_ids.append(i)
+            # remove predicted detections from DontCare regions
+            bbox_pred = bbox_pred[retain_ids, :]
+
+        return bbox_pred, bbox_gt
 
     def __getitem__(self, index):
         """Generates one sample of data"""
@@ -466,7 +511,7 @@ class KittiMOTDataset(data.Dataset):
                 bbox_pred_fr[:, 0] = input_info[1][-1] - bbox_pred_fr[:, 0] + input_info[1][0]
 
             # assign GT track ids to each predicted bbox
-            bbox_pred_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
+            bbox_pred_fr, bbox_gt_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
 
             # random dropout of bboxes
             if self.random_transforms:
