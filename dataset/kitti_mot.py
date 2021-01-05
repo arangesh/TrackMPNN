@@ -7,6 +7,7 @@ import cv2
 import PIL
 
 import torch
+import torch.nn.functional as F
 from torch.utils import data
 import torch.optim as optim
 import torchvision.transforms as transforms
@@ -14,7 +15,7 @@ import torchvision.transforms as transforms
 from utils.misc import vectorized_iou
 from models.dla.pose_dla_dcn import get_pose_net
 from models.espv2.SegmentationModel import EESPNet_Seg
-from models.loss import EmbeddingLoss
+from models.loss import EmbeddingLoss, FairMOTLoss
 
 
 def store_kitti_results(bbox_pred, y_out, class_dict, output_path):
@@ -76,7 +77,7 @@ class KittiMOTDataset(data.Dataset):
         self.embed_arch = embed_arch
         self.cur_win_size = cur_win_size
         self.ret_win_size = ret_win_size
-        self.num_vis_feats = 4 # number of visual features to be used for tracking
+        self.num_vis_feats = 16 # number of visual features to be used for tracking
         self.input_h, self.input_w = 384, 1280
         self.snapshot = snapshot
         self.random_transforms = random_transforms
@@ -98,29 +99,34 @@ class KittiMOTDataset(data.Dataset):
             if self.split == 'train':
                 if self.embed_arch == 'espv2':
                     self.down_ratio = 1
-                    self.embed_net = EESPNet_Seg(classes=4, s=2, pretrained='./weights/espnetv2_s_2.0.pth')
+                    self.embed_net = EESPNet_Seg(classes=self.num_vis_feats, s=1, pretrained='./weights/espnetv2_s_1.0.pth')
                     # optimizer for detector
                     self.optimizer = optim.Adam(self.embed_net.parameters(), 5e-4, (0.9, 0.999), eps=1e-08, weight_decay=5e-4)
                 elif self.embed_arch == 'dla34':
                     self.down_ratio = 4
-                    self.embed_net = get_pose_net(num_layers=34, heads={'trk': 4}, head_conv=256, down_ratio=self.down_ratio)
+                    self.embed_net = get_pose_net(num_layers=34, heads={'trk': self.num_vis_feats}, head_conv=256, down_ratio=self.down_ratio)
                     # optimizer for detector
                     self.optimizer = optim.Adam(self.embed_net.parameters(), lr=1.25e-4)
                 if self.snapshot is not None:
                      self.embed_net.load_state_dict(torch.load(self.snapshot), strict=True)
                 if self.cuda:
                     self.embed_net.cuda()
-                self.embed_loss = EmbeddingLoss()
+                #self.embed_loss = EmbeddingLoss()
+                self.embed_loss = FairMOTLoss(self.num_vis_feats)
             elif self.split == 'val':
+                if self.embed_arch == 'espv2':
+                    self.down_ratio = 1
+                elif self.embed_arch == 'dla34':
+                    self.down_ratio = 4
                 # do not initialize a second detector for val (will use the same one as train)
                 self.embed_net = None
             elif self.split == 'test':
                 if self.embed_arch == 'espv2':
                     self.down_ratio = 1
-                    self.embed_net = EESPNet_Seg(classes=4, s=2, pretrained='./weights/espnetv2_s_2.0.pth')
+                    self.embed_net = EESPNet_Seg(classes=self.num_vis_feats, s=1, pretrained='./weights/espnetv2_s_1.0.pth')
                 elif self.embed_arch == 'dla34':
                     self.down_ratio = 4
-                    self.embed_net = get_pose_net(num_layers=34, heads={'trk': 4}, head_conv=256, down_ratio=self.down_ratio)
+                    self.embed_net = get_pose_net(num_layers=34, heads={'trk': self.num_vis_feats}, head_conv=256, down_ratio=self.down_ratio)
                 if self.snapshot is not None:
                      self.embed_net.load_state_dict(torch.load(self.snapshot), strict=True)
                 if self.cuda:
@@ -181,10 +187,11 @@ class KittiMOTDataset(data.Dataset):
         seqs = sorted(os.listdir(self.im_path))
         # seqs 13, 16 and 17 have very few or no cars at all
         if self.split == 'train':
-            seqs = seqs[0:16] + [seqs[17], seqs[19]]
+            #seqs = seqs[0:16] + [seqs[17], seqs[19]]
+            seqs = seqs[0:11]
             print(seqs)
         elif self.split == 'val':
-            seqs = [seqs[16], seqs[18], seqs[20]]
+            seqs = seqs[11:]
             print(seqs)
         else:
             pass
@@ -351,9 +358,13 @@ class KittiMOTDataset(data.Dataset):
         if self.cuda:
             im_tensor = im_tensor.cuda()
 
-        outputs = self.embed_net(im_tensor.unsqueeze(0))[-1]
+        if self.split == 'train':
+            outputs = self.embed_net(im_tensor.unsqueeze(0))
+        else:
+            with torch.no_grad():
+                outputs = self.embed_net(im_tensor.unsqueeze(0))
         if self.embed_arch == 'dla34':
-            outputs = outputs['trk']
+            outputs = outputs[-1]['trk']
         return outputs
 
     def get_vis_feats(self, feat_maps, bboxes, im_shape):
@@ -401,20 +412,18 @@ class KittiMOTDataset(data.Dataset):
 
         # calculate iou matrix
         ious = vectorized_iou(bbox_pred[:, 4:8], bbox_gt[:, 4:8])
-        # cost matrix
-        C = 1.0 - ious
-        # category mask
-        cat_mask = np.not_equal(bbox_pred[:, 2:3], bbox_gt[:, 2:3].T)
-        C[cat_mask] = 100. # assign high cost to ensure it is not assigned
-        # optimal assignment
-        row_ind, col_ind = linear_sum_assignment(C)
+        # indices sorted by iou
+        (rows, cols) = np.unravel_index(np.argsort(ious, axis=None), ious.shape)
 
-        for row, col in zip(row_ind, col_ind):
-            if C[row, col] < iou_thresh:
-                if bbox_pred[row, 1] < 0: # if unassigned
-                    bbox_pred[row, 1] = bbox_gt[col, 1]
+        gt_assigned = -1*np.ones((ious.shape[1],))
+        for row, col in zip(rows[::-1], cols[::-1]):
+            if ious[row, col] >= iou_thresh:
+                if bbox_pred[row, 1] < 0: # if unassigned pred bbox
+                    if gt_assigned[col] < 0: # if unassigned GT bbox
+                        bbox_pred[row, 1] = bbox_gt[col, 1]
+                        gt_assigned[col] = 1
                 else: # if already assigned
-                    assert False, "Same detection assigned to two tracks!"
+                    pass
 
         return bbox_pred
 
@@ -490,11 +499,12 @@ class KittiMOTDataset(data.Dataset):
         # visual features
         if 'vis' in self.feats:
             vis_feats = torch.cat(vis_feats, 0)
-            features = torch.cat((features, vis_feats), 1)
+            # calculate embedding loss
+            if self.split == 'train':
+                tot_loss += self.embed_loss(vis_feats, bbox_pred[:, :2].astype('int64'))
+            features = torch.cat((features, F.softmax(vis_feats, dim=1)), 1)
 
         if features.size()[0] != 0:
             features = (features - self.mean) / self.std # normalize/standardize features
-            if self.split == 'train' and 'vis' in self.feats:
-                # add embedding loss
-                tot_loss += self.embed_loss(features[:, -self.num_vis_feats:], bbox_pred[:, :2].astype('int64'))
+                
         return features.detach(), bbox_pred, bbox_gt, tot_loss

@@ -63,7 +63,8 @@ class EESPNet_Seg(nn.Module):
         out_up_l2 = F.interpolate(merge_l2, scale_factor=2, mode='bilinear', align_corners=True)
         merge_l1 = self.project_l1(torch.cat([out_l1, out_up_l2], 1))
         if self.training:
-            return F.interpolate(merge_l1, scale_factor=2, mode='bilinear', align_corners=True), self.hierarchicalUpsample(proj_merge_l3_bef_act)
+            #return F.interpolate(merge_l1, scale_factor=2, mode='bilinear', align_corners=True), self.hierarchicalUpsample(proj_merge_l3_bef_act)
+            return F.interpolate(merge_l1, scale_factor=2, mode='bilinear', align_corners=True)
         else:
             return F.interpolate(merge_l1, scale_factor=2, mode='bilinear', align_corners=True)
 

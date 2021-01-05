@@ -157,3 +157,27 @@ class EmbeddingLoss(nn.Module):
             dist_loss /= (C * (C - 1))
 
         return var_loss + dist_loss
+
+
+class FairMOTLoss(nn.Module):
+    def __init__(self, num_vis_feats):
+        super(FairMOTLoss, self).__init__()
+        self.classification_loss = nn.CrossEntropyLoss()
+        self.num_vis_feats = num_vis_feats
+
+    def forward(self, features, labels):
+        """
+        features(N, F): Torch tensor with image features corresponding to each detection
+        labels(N, 2): Numpy array where each row corresponds to [fr, track_id] for the detection
+        """
+        if labels.shape[0] == 0:
+            return torch.tensor(0.0).to(features.device)
+        unique_ids = np.unique(labels[:, 1]) # get track IDS in chunk
+        ids_dict = {k:v for v, k in enumerate(unique_ids)}
+        for k, v in ids_dict.items():
+            if v >= self.num_vis_feats:
+                ids_dict[k] = -100 # ignore example
+        _labels = np.vectorize(ids_dict.get)(labels[:, 1]) # map them to integers starting at 0
+        _labels = torch.from_numpy(_labels).to(features.device)
+
+        return self.classification_loss(features, _labels)

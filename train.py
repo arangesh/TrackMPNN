@@ -122,7 +122,7 @@ def train(model, epoch):
         # save gradient flow image through embedding net and tracker model
         if (b_idx % 100 == 0) and args.plot_gradients:
             if 'vis' in args.feats:
-                plot_grad_flow([list(param for param in train_loader.dataset.embed_net.named_parameters() if 'trk' in param[0]),
+                plot_grad_flow([train_loader.dataset.embed_net.named_parameters(),
                     model.named_parameters()], os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
             else:
                 plot_grad_flow([model.named_parameters()], os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
@@ -276,7 +276,7 @@ def val(model, epoch):
         # save the TrackMPNN model and the embedding net
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
         if 'vis' in args.feats:
-            save_model(os.path.join(args.output_dir, 'vis-net_' + '%.4d' % (epoch,) + '.pth'), epoch, val_loader.dataset.embed_net, optimizer=None)
+            torch.save(val_loader.dataset.embed_net.state_dict(), os.path.join(args.output_dir, 'vis-net_' + '%.4d' % (epoch,) + '.pth'))
 
     if 'vis' in args.feats:
         train_loader.dataset.embed_net = val_loader.dataset.embed_net # copy back the trained embedding net from the val loader
@@ -296,7 +296,7 @@ if __name__ == '__main__':
     if 'temp' in args.feats:
         num_features += 2
     if 'vis' in args.feats:
-        num_features += 4
+        num_features += 16
     model = TrackMPNN(nfeatures=num_features, nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=True)

@@ -97,7 +97,7 @@ if __name__ == '__main__':
     if 'temp' in args.feats:
         num_features += 2
     if 'vis' in args.feats:
-        num_features += 4
+        num_features += 16
     model = TrackMPNN(nfeatures=num_features, nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
