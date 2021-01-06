@@ -55,7 +55,8 @@ def infer(model):
             # update graph for next timestep and run forward pass
             y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
                 use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
-            if feats.size()[0] == 0:
+            # if no new detections found and no carried over detections, continue
+            if feats.size()[0] == 0 and states.size()[0] == 0:
                 print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t_cur - args.cur_win_size + 1), t_end))
                 continue
             scores, logits, states = model(feats, states, node_adj, edge_adj)
@@ -64,10 +65,6 @@ def infer(model):
                 idx_node = torch.nonzero((y_pred[:, 0] != -1))[:, 0]
                 scores[idx_node, 0] = 0
                 scores[idx_node, 1] = 1
-
-            # if no new detections are added, don't remove detections either
-            if feats.size()[0] == 0:
-                continue
 
             if t_cur == t_end - 1:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 

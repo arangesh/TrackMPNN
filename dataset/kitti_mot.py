@@ -343,6 +343,8 @@ class KittiMOTDataset(data.Dataset):
 
             if tmp[0] not in self.cats:
                 continue
+            if tmp[0] == "Van": # remove boxes related to Van from predictions, we only need it in GT
+                continue
 
             # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
             b = [ann['frame'], -1, ann['category_id']] \

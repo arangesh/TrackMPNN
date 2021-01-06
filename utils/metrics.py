@@ -16,11 +16,10 @@ def create_mot_accumulator(bbox_pred, bbox_gt, y_out, y_gt):
     Returns: 
     A MOT accumulator object
     """
-    if np.all(y_gt[:, 1] == -1) or np.all(y_out[:, 1] == -1):
-        return None
-    times = np.sort(y_gt[:, 0])
-    t_st = times[0]
-    t_ed = times[-1]
+    times_out = np.sort(y_out[:, 0])
+    times_gt = np.sort(y_gt[:, 0])
+    t_st = min(times_gt[0], times_out[0])
+    t_ed = max(times_gt[-1], times_out[-1])
 
     # initialize and load tracking results into MOT accumulator
     acc = mm.MOTAccumulator()
