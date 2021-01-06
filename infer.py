@@ -40,7 +40,7 @@ def infer(model):
         y_out[:, 1] = -1
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, mode='test', cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, t_st=0, mode='test', cuda=args.cuda)
         
         # compute the classification scores
         scores, logits, states = model(feats, None, node_adj, edge_adj)
@@ -51,14 +51,22 @@ def infer(model):
             scores[idx_node, 1] = 1
 
         # loop through all frames
+        t_skip = t_st
         for t_cur in range(t_st, t_end):
-            # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
-                use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
-            # if no new detections found and no carried over detections, continue
-            if feats.size()[0] == 0 and states.size()[0] == 0:
-                print("Sequence {}, generated tracks upto t = {}/{}...".format(b_idx + 1, max(0, t_cur - args.cur_win_size + 1), t_end))
+            if t_cur < t_skip: # if timestep has already been processed
                 continue
+            # if no new detections found and no carried over detections
+            if feats.size()[0] == 0 and states.size()[0] == 0:
+                # reinitialize graph
+                y_pred, feats, node_adj, edge_adj, labels, t_skip, _ = initialize_graph(X_seq, y_seq, t_st=t_cur, mode='test', cuda=args.cuda)
+                if y_pred is None:
+                    break
+                states = None
+            else:
+                # update graph for next timestep
+                y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
+                    use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
+            # run forward pass
             scores, logits, states = model(feats, states, node_adj, edge_adj)
             scores = torch.cat((1-scores, scores), dim=1)
             if not args.tp_classifier:

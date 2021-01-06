@@ -93,7 +93,7 @@ def hungarian(node_adj, scores, y_pred, t, threshold=0.5):
     return y_pred
 
 
-def initialize_graph(X, y, mode='test', cuda=True):
+def initialize_graph(X, y, t_st=0, mode='test', cuda=True):
     """
     This is a function for initializing the graph on which to perform
     message passing operations.
@@ -117,12 +117,15 @@ def initialize_graph(X, y, mode='test', cuda=True):
     assert (X.size()[0] == y.size()[0] == 1), "Only batch size 1 supported!"
     assert (X.size()[1] == y.size()[1]), "Input dimension mismatch!"
 
-    # find first two non-empty times to initialize graph
+    # find first two non-empty times on or after t_st to initialize graph
     times = torch.sort(y[0, :, 0])[0]
-    t0 = t1 = times[0]
+    for t in times:
+        if t >= t_st:
+            t0 = t1 = t
+            break
     tN = times[-1]
     for t in times:
-        if t != t0:
+        if t > t0:
             t1 = t
             break
     t0, t1, tN = int(t0.item()), int(t1.item()), int(tN.item())
