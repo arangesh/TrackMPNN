@@ -160,7 +160,7 @@ def train(model, epoch):
     print("Average loss for epoch = {:.2f}".format(avg_loss))
     f_log.write("Average loss for epoch = {:.2f}\n".format(avg_loss))
     print("Average F1 score for epoch = {:.4f}\n------------------------".format(avg_f1))
-    f_log.write("Average F1 score for epoch = {:.4f}\n".format(avg_f1))
+    f_log.write("Average F1 score for epoch = {:.4f}\n------------------------\n".format(avg_f1))
 
     return model, avg_loss_d, avg_loss_c, avg_loss_f, avg_loss, avg_f1
 
@@ -281,8 +281,8 @@ def val(model, epoch):
     for seq_num, _ in enumerate(val_motas):
         print("Validation MOTA for sequence {:d} = {:.2f}%".format(seq_num, val_motas[seq_num]))
     print("Validation MOTA = {:.2f}%".format(val_mota))
-    print("Validation mAP = {:.2f}%\n------------------------".format(val_map))
-    f_log.write("\nValidation F1 score = {:.4f}\n".format(val_f1))
+    print("Validation mAP = {:.2f}%\n------------------------\n".format(val_map))
+    f_log.write("------------------------\nValidation F1 score = {:.4f}\n".format(val_f1))
     for seq_num, _ in enumerate(val_motas):
         f_log.write("Validation MOTA for sequence {:d} = {:.2f}%\n".format(seq_num, val_motas[seq_num]))
     f_log.write("Validation MOTA = {:.2f}%\n".format(val_mota))

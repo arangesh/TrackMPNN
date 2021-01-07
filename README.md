@@ -45,10 +45,16 @@ cd DCNv2
 ```
 
 ## Training
-TrackMPNN can be trained using [this](https://github.com/arangesh/TrackMPNN/blob/master/train.py) script as follows:
+TrackMPNN can be trained for RRC detections as follows:
 ```shell
 pipenv shell # activate virtual environment
-python train.py --dataset-root-path=/path/to/kitti-mot/ --cur-win-size=5 --random-transforms
+python train.py --dataset-root-path=/path/to/kitti-mot/ --cur-win-size=5 --detections=rrc --feats=2d --category=Car --no-tp-classifier --random-transforms
+exit # exit virtual environment
+```
+TrackMPNN can also be trained for CenterTrack detections as follows:
+```shell
+pipenv shell # activate virtual environment
+python train.py --dataset-root-path=/path/to/kitti-mot/ --cur-win-size=5 --detections=rrc --feats=2d --category=All --no-tp-classifier --random-transforms
 exit # exit virtual environment
 ```
 
@@ -56,8 +62,9 @@ exit # exit virtual environment
 Inference on the `testing` split can be carried out using [this](https://github.com/arangesh/TrackMPNN/blob/master/infer.py) script as follows:
 ```shell
 pipenv shell # activate virtual environment
-python infer.py --snapshot=/path/to/snapshot --dataset-root-path=/path/to/kitti-mot/
+python infer.py --snapshot=/path/to/snapshot --dataset-root-path=/path/to/kitti-mot/ --hungarian
 exit # exit virtual environment
 ```
+All settings from training will be carried over for inference.
 
 Config files, logs, results and snapshots from running the above scripts will be stored in the `TrackMPNN/experiments` folder by default.

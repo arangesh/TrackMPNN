@@ -15,7 +15,7 @@ parser.add_argument('--detections', type=str, default='centertrack', help='Detec
 parser.add_argument('--feats', type=str, default='2d+temp+vis', help='Features used for tracking: any combination of 2d, temp and vis')
 parser.add_argument('--embed-arch', type=str, default='espv2', help='Architecture to use for the visual embedding network: espv2/dla34')
 parser.add_argument('--cur-win-size', type=int, default=5, help='number of timesteps in curring processing window')
-parser.add_argument('--ret-win-size', type=int, default=10, help='number of timesteps in the past to be retained for association')
+parser.add_argument('--ret-win-size', type=int, default=0, help='number of timesteps in the past to be retained for association')
 parser.add_argument('--hungarian', action='store_true', default=False, help='decode tracks using frame-by-frame Hungarian algorithm')
 parser.add_argument('--no-tp-classifier', action='store_true', default=False, help='train network to only classify edges')
 parser.add_argument('--num-hidden-feats', type=int, default=64, help='number of hidden layer nodes')
