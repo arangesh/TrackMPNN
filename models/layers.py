@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.sparse as sp
 import torch.nn.functional as F
 
 
@@ -25,18 +26,17 @@ class GraphAttentionLayer(nn.Module): # adopted from https://github.com/Diego999
         h = torch.mm(h, self.W) # (N, F)
         N = h.size()[0]
 
-        h_plus = torch.mm((node_adj > 0).float(), h)
-        h_minus = torch.mm((node_adj < 0).float(), h)
+        h_plus = sp.mm((node_adj > 0).float().to_sparse(), h)
+        h_minus = sp.mm((node_adj < 0).float().to_sparse(), h)
         a_input_plus = torch.cat((h_plus, h_minus), dim=1) # (N, 2F)
         a_input_minus = torch.cat((h_minus, h_plus), dim=1) # (N, 2F)
-        e_plus = self.leakyrelu(torch.matmul(a_input_plus, self.a)).repeat(1, N) # (N, 1)
-        e_minus = self.leakyrelu(torch.matmul(a_input_minus, self.a)).repeat(1, N) # (N, 1)
+        e_plus = self.leakyrelu(torch.matmul(a_input_plus, self.a)).repeat(1, N) # (N, N)
+        e_minus = self.leakyrelu(torch.matmul(a_input_minus, self.a)).repeat(1, N) # (N, N)
 
-        zero_vec = -9e15*torch.ones_like(e_plus) # (N, N)
-        attention = torch.where(edge_adj > 0, e_plus, zero_vec) # (N, N)
+        attention = torch.where(edge_adj > 0, e_plus, torch.tensor(-9e15).to(e_plus.device)) # (N, N)
         attention = torch.where(edge_adj < 0, e_minus, attention) # (N, N)
         attention = F.softmax(attention, dim=1) # (N, N)
-        h_prime = torch.matmul(attention * edge_adj, h) # (N, F)
+        h_prime = sp.mm((attention * edge_adj).to_sparse(), h) # (N, F)
 
         if self.concat:
             return F.elu(h_prime)
@@ -81,28 +81,30 @@ class FactorGraphGRU(nn.Module):
             self.node_gru.bias_hh.data.uniform_(0, 0)
 
     def forward(self, h, node_adj, edge_adj):
-        node_adj = node_adj.to_dense()
-        edge_adj = edge_adj.to_dense()
-        I_node = torch.diag(torch.diag(node_adj))
-        I_edge = torch.diag(torch.diag(edge_adj))
+        I_node = torch.diag(torch.diag(node_adj.to_dense())).to_sparse() # (N', N')
+        I_edge = torch.diag(torch.diag(edge_adj.to_dense())).to_sparse() # (N', N')
+        node_adj_norm = node_adj - I_node
+        edge_adj_norm = edge_adj - I_edge
 
         if self.msg_type == 'concat': # node_support: concat(h_n1, h_n2)
-            node_support = torch.cat((torch.mm(((node_adj - I_node) > 0).float(), h), 
-                torch.mm(((node_adj - I_node) < 0).float(), h)), dim=1)
+            node_adj_pos = (node_adj_norm.to_dense() > 0).float().to_sparse()
+            node_adj_neg = (node_adj_norm.to_dense() < 0).float().to_sparse()
+            node_support = torch.cat((sp.mm(node_adj_pos, h), sp.mm(node_adj_neg, h)), dim=1)
         else: # node_support: h_n1 - h_n2
-            node_support = torch.mm(node_adj - I_node, h)
+            node_support = sp.mm(node_adj_norm, h)
         # edge_output: GRU(h_e(t-1), node_support)
         edge_output = self.edge_gru(node_support, h)
 
         # edge_support: sum(alpha_ei*h_ei)
-        edge_support = self.gat[0](h, node_adj - I_node, edge_adj - I_edge)
+        node_adj_norm, edge_adj_norm = node_adj_norm.to_dense(), edge_adj_norm.to_dense()
+        edge_support = self.gat[0](h, node_adj_norm, edge_adj_norm)
         for i in range(1, self.nattheads):
-            edge_support = edge_support + self.gat[i](h, node_adj - I_node, edge_adj - I_edge)
+            edge_support = edge_support + self.gat[i](h, node_adj_norm, edge_adj_norm)
         edge_support = edge_support / self.nattheads
         # node_output: GRU(h_n(t-1), edge_support)
         node_output = self.node_gru(edge_support, h)
 
-        return torch.mm(I_edge, edge_output) + torch.mm(I_node, node_output)
+        return sp.mm(I_edge, edge_output) + sp.mm(I_node, node_output)
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' \

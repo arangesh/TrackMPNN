@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torchvision
+import torch.sparse as sp
 
 from models.layers import FactorGraphGRU
 
@@ -35,7 +35,7 @@ class TrackMPNN(nn.Module):
         if x.size()[0] > 0:
             x = self.input_transform(x) # (N'-N, nhidden)
 
-            h_update = torch.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhidden)
+            h_update = sp.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhidden)
             if h_in is None: # (N, nhidden)
                 h = h_update # (N', nhidden)
             else:
@@ -44,6 +44,6 @@ class TrackMPNN(nn.Module):
             h = h_in
 
         h_out = self.factor_gru1(h, node_adj, edge_adj) # (N', nhidden)
-        y = torch.mm(I_node, self.output_transform_node(h_out)) + torch.mm(I_edge, self.output_transform_edge(h_out)) # (N', 1)
+        y = sp.mm(I_node, self.output_transform_node(h_out)) + sp.mm(I_edge, self.output_transform_edge(h_out)) # (N', 1)
 
         return self.output_activation(y), y, h_out
