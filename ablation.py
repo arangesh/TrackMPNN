@@ -71,7 +71,7 @@ def val(model):
             idx = idx_edge
         # compute the f1 score
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
-        epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+        epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy(), zero_division=0))
 
         # loop through all frames
         t_skip = t_st
@@ -105,7 +105,7 @@ def val(model):
                 idx = idx_edge
             # compute the f1 score
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
-            epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+            epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy(), zero_division=0))
 
             if t_cur == t_end - 1:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 
