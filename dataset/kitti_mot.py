@@ -72,7 +72,7 @@ class KittiMOTDataset(data.Dataset):
         self.split = split
         self.class_dict = {'Pedestrian': 1, 'Car': 2, 'Cyclist': 3}
         if cat == 'All':
-            self.cats = self.class_dict.keys() + ['Van', 'DontCare']
+            self.cats = list(self.class_dict.keys()) + ['Van', 'DontCare']
         elif cat == 'Car':
             self.cats = [cat, 'Van', 'DontCare']
         else:
