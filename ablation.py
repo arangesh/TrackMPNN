@@ -143,23 +143,23 @@ def val(model):
     print("------------------------\nValidation F1 score = {:.4f}".format(val_f1))
     for seq_num, _ in enumerate(val_motas):
         print("Validation MOTA for sequence {:d} = {:.2f}%".format(seq_num, val_motas[seq_num]))
-    print("Validation MOTA = {:.2f}%".format(100.*val_metrics['mota']))
-    print("Validation MOTP = {:.4f}%".format(val_metrics['motp']))
+    print("Validation MOTA = {:.2f}".format(100.*val_metrics['mota']))
+    print("Validation MOTP = {:.4f}".format(val_metrics['motp']))
     print("Validation MT = {:.2f}%".format(100.*val_metrics['mostly_tracked']/val_metrics['num_unique_objects']))
     print("Validation ML = {:.2f}%".format(100.*val_metrics['mostly_lost']/val_metrics['num_unique_objects']))
-    print("Validation IDS = {:d}%".format(val_metrics['num_switches']))
-    print("Validation FRAG = {:d}%".format(val_metrics['num_fragmentations']))
-    print("Validation mAP = {:.2f}%\n------------------------\n".format(val_map))
+    print("Validation IDS = {:d}".format(val_metrics['num_switches']))
+    print("Validation FRAG = {:d}".format(val_metrics['num_fragmentations']))
+    print("Validation mAP = {:.2f}\n------------------------\n".format(val_map))
     f_log.write("------------------------\nValidation F1 score = {:.4f}\n".format(val_f1))
     for seq_num, _ in enumerate(val_motas):
         f_log.write("Validation MOTA for sequence {:d} = {:.2f}%\n".format(seq_num, val_motas[seq_num]))
-    f_log.write("Validation MOTA = {:.2f}%\n".format(100.*val_metrics['mota']))
-    f_log.write("Validation MOTP = {:.4f}%\n".format(val_metrics['motp']))
+    f_log.write("Validation MOTA = {:.2f}\n".format(100.*val_metrics['mota']))
+    f_log.write("Validation MOTP = {:.4f}\n".format(val_metrics['motp']))
     f_log.write("Validation MT = {:.2f}%\n".format(100.*val_metrics['mostly_tracked']/val_metrics['num_unique_objects']))
     f_log.write("Validation ML = {:.2f}%\n".format(100.*val_metrics['mostly_lost']/val_metrics['num_unique_objects']))
-    f_log.write("Validation IDS = {:d}\n%".format(val_metrics['num_switches']))
-    f_log.write("Validation FRAG = {:d}\n%".format(val_metrics['num_fragmentations']))
-    f_log.write("Validation mAP = {:.2f}%\n------------------------\n\n".format(val_map))
+    f_log.write("Validation IDS = {:d}\n".format(val_metrics['num_switches']))
+    f_log.write("Validation FRAG = {:d}\n".format(val_metrics['num_fragmentations']))
+    f_log.write("Validation mAP = {:.2f}\n------------------------\n\n".format(val_map))
 
     return
 
