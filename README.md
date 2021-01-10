@@ -17,7 +17,7 @@ pipenv install
 ```shell
 pipenv install https://download.pytorch.org/whl/cu100/torch-1.2.0-cp36-cp36m-manylinux1_x86_64.whl
 ```
-5) Clone and make DCNv2:
+5) Clone and make DCNv2 (note gcc-8 is highest supported version incase you're on ubuntu 20.04 +):
 ```shell
 cd models/dla
 git clone https://github.com/CharlesShang/DCNv2
@@ -54,7 +54,7 @@ exit # exit virtual environment
 TrackMPNN can also be trained for CenterTrack detections as follows:
 ```shell
 pipenv shell # activate virtual environment
-python train.py --dataset-root-path=/path/to/kitti-mot/ --cur-win-size=5 --detections=rrc --feats=2d --category=All --no-tp-classifier --random-transforms
+python train.py --dataset-root-path=/path/to/kitti-mot/ --cur-win-size=5 --detections=centertrack --feats=2d --category=All --no-tp-classifier --random-transforms
 exit # exit virtual environment
 ```
 
