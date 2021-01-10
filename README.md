@@ -62,7 +62,7 @@ exit # exit virtual environment
 Inference on the `testing` split can be carried out using [this](https://github.com/arangesh/TrackMPNN/blob/master/infer.py) script as follows:
 ```shell
 pipenv shell # activate virtual environment
-python infer.py --snapshot=/path/to/snapshot --dataset-root-path=/path/to/kitti-mot/ --hungarian
+python infer.py --snapshot=/path/to/snapshot.pth --dataset-root-path=/path/to/kitti-mot/ --hungarian
 exit # exit virtual environment
 ```
 All settings from training will be carried over for inference.
