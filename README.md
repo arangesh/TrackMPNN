@@ -68,3 +68,12 @@ exit # exit virtual environment
 All settings from training will be carried over for inference.
 
 Config files, logs, results and snapshots from running the above scripts will be stored in the `TrackMPNN/experiments` folder by default.
+
+
+## Visualizing Inference Results 
+Use the `utils/visualize_mot.py` script with the inference results which should be in the experiments folder and the testing split images.
+```shell
+pipenv shell # activate virtual environment
+python utils/visualize_mot.py /path/to/testing/inference/results /path/to/kitti-mot/testing/image_02
+exit
+```
