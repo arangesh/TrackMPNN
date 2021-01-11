@@ -71,9 +71,10 @@ Config files, logs, results and snapshots from running the above scripts will be
 
 
 ## Visualizing Inference Results 
-Use the `utils/visualize_mot.py` script with the inference results which should be in the experiments folder and the testing split images.
+You can use the `utils/visualize_mot.py` script to generate a video of the tracking results after running the inference script:
 ```shell
 pipenv shell # activate virtual environment
 python utils/visualize_mot.py /path/to/testing/inference/results /path/to/kitti-mot/testing/image_02
 exit
 ```
+The videos will be stored in the same folder as the inference results.
