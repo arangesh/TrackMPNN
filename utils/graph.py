@@ -93,7 +93,7 @@ def hungarian(node_adj, scores, y_pred, t, threshold=0.5):
     return y_pred
 
 
-def initialize_graph(X, y, mode='test', cuda=True):
+def initialize_graph(X, y, t_st=0, mode='test', cuda=True):
     """
     This is a function for initializing the graph on which to perform
     message passing operations.
@@ -117,12 +117,15 @@ def initialize_graph(X, y, mode='test', cuda=True):
     assert (X.size()[0] == y.size()[0] == 1), "Only batch size 1 supported!"
     assert (X.size()[1] == y.size()[1]), "Input dimension mismatch!"
 
-    # find first two non-empty times to initialize graph
+    # find first two non-empty times on or after t_st to initialize graph
     times = torch.sort(y[0, :, 0])[0]
-    t0 = t1 = times[0]
+    for t in times:
+        if t >= t_st:
+            t0 = t1 = t
+            break
     tN = times[-1]
     for t in times:
-        if t != t0:
+        if t > t0:
             t1 = t
             break
     t0, t1, tN = int(t0.item()), int(t1.item()), int(tN.item())
@@ -136,8 +139,6 @@ def initialize_graph(X, y, mode='test', cuda=True):
 
     # initialize y_pred
     y_pred = -1*torch.ones((num_dets_t0+num_dets_t0*num_dets_t1+num_dets_t1, 3), dtype=torch.int64) # (N0+N1+N0*N1, 3)
-    if cuda:
-        y_pred = y_pred.cuda()
     y_pred[:num_dets_t0, 0] = t0
     y_pred[num_dets_t0+num_dets_t0*num_dets_t1:, 0] = t1
     y_pred[:num_dets_t0, 1] = ids_t0
@@ -145,14 +146,10 @@ def initialize_graph(X, y, mode='test', cuda=True):
 
     # initialize feats
     X_edge = torch.zeros((num_dets_t0*num_dets_t1, X.size()[2])) # (N0*N1, NUM_FEATS)
-    if cuda:
-        X_edge = X_edge.cuda()
-    feats = torch.cat((X[0, ids_t0, :], X_edge, X[0, ids_t1, :]), 0) # (N0+N0*N1+N1, NUM_FEATS)
+    feats = torch.cat((X[0, ids_t0, :], X_edge.to(X.device), X[0, ids_t1, :]), 0) # (N0+N0*N1+N1, NUM_FEATS)
 
     # initialize node_adj
     node_adj = torch.zeros(feats.size()[0], feats.size()[0])
-    if cuda:
-        node_adj = node_adj.cuda()
     for i in range(num_dets_t0):
         node_adj[num_dets_t0+i*num_dets_t1:num_dets_t0+(i+1)*num_dets_t1, i] = 1
     for i in range(num_dets_t1):
@@ -161,18 +158,12 @@ def initialize_graph(X, y, mode='test', cuda=True):
     edge_adj = torch.t(node_adj) # tranpose node_adj to get edge_adj
     # retain node and edge informations
     I_edge = torch.diag((y_pred[:, 0] == -1).float())
-    if cuda:
-        I_edge = I_edge.cuda()
-        I_node = torch.eye(y_pred.size()[0]).cuda() - I_edge
-    else:
-        I_node = torch.eye(y_pred.size()[0]) - I_edge
+    I_node = torch.eye(y_pred.size()[0]) - I_edge
     node_adj = node_adj + I_node
     edge_adj = edge_adj + I_edge
 
     # initialize labels
     labels = torch.zeros((feats.size()[0],), dtype=torch.int64) # (1, N0+N0*N1+N1)
-    if cuda:
-        labels = labels.cuda()
     y_t0 = y[0, ids_t0, :] # (N0, 2)
     y_t1 = y[0, ids_t1, :] # (N1, 2)
     labels[:num_dets_t0] = y_t0[:, 1] >= 0
@@ -186,7 +177,13 @@ def initialize_graph(X, y, mode='test', cuda=True):
         elif idx.size()[0] > 1:
             assert False, "More than one detection from same timestep assinged to same track!"
 
-    return y_pred, feats, node_adj.to_sparse(), edge_adj.to_sparse(), labels, t1+1, tN+1
+    if cuda:
+        y_pred = y_pred.cuda()
+        node_adj = node_adj.to_sparse().cuda()
+        edge_adj = edge_adj.to_sparse().cuda()
+        labels = labels.cuda()
+
+    return y_pred, feats, node_adj, edge_adj, labels, t1+1, tN+1
 
 
 def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, mode='test', cuda=True):
@@ -289,14 +286,10 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
         y_pred[-num_dets_t:, 0] = t
         y_pred[-num_dets_t:, 1] = ids_t
     y_pred = torch.from_numpy(y_pred)
-    if cuda:
-        y_pred = y_pred.cuda()
 
     # feats_t <-- feats_t-1
     X_edge = torch.zeros((num_dets_active*num_dets_t, X.size()[2]))
-    if cuda:
-        X_edge = X_edge.cuda()
-    feats = torch.cat((X_edge, X[0, ids_t, :]), 0)
+    feats = torch.cat((X_edge.to(X.device), X[0, ids_t, :]), 0)
 
     # [node_adj_t, edge_adj_t] <-- node_adj_t-1
     if num_dets_t != 0: 
@@ -307,16 +300,10 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
         for i in range(num_dets_t):
             node_adj[num_past+i:num_past+num_dets_active*num_dets_t:num_dets_t, num_past+num_dets_active*num_dets_t+i] = -1
     node_adj = torch.from_numpy(node_adj).to_sparse()
-    if cuda:
-        node_adj = node_adj.cuda()
     edge_adj = node_adj.transpose(1, 0) # tranpose node_adj to get edge_adj
     # retain node and edge informations
     I_edge = torch.diag((y_pred[:, 0] == -1).float()).to_sparse()
-    if cuda:
-        I_edge = I_edge.cuda()
-        I_node = torch.eye(y_pred.size()[0]).to_sparse().cuda() - I_edge
-    else:
-        I_node = torch.eye(y_pred.size()[0]).to_sparse() - I_edge
+    I_node = torch.eye(y_pred.size()[0]).to_sparse() - I_edge
     node_adj = node_adj + I_node
     edge_adj = edge_adj + I_edge
 
@@ -338,6 +325,11 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
         labels = torch.from_numpy(labels)
         if cuda:
             labels = labels.cuda()
+
+    if cuda:
+        y_pred = y_pred.cuda()
+        node_adj = node_adj.cuda()
+        edge_adj = edge_adj.cuda() 
 
     return y_pred, feats, node_adj, edge_adj, labels
 
@@ -528,27 +520,20 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, ret_w
     y_pred = np.delete(y_pred, del_ids, 0)
 
     # take everything back to GPU
-    states = torch.from_numpy(states)
-    if cuda:
-        states = states.cuda()
     y_pred = torch.from_numpy(y_pred)
-    if cuda:
-        y_pred = y_pred.cuda()
+    states = torch.from_numpy(states)
     node_adj = torch.from_numpy(node_adj).to_sparse()
-    if cuda:
-        node_adj = node_adj.cuda()
     I_edge = torch.diag((y_pred[:, 0] == -1).float()).to_sparse()
-    if cuda:
-        I_edge = I_edge.cuda()
-        I_node = torch.eye(y_pred.size()[0]).to_sparse().cuda() - I_edge
-    else:
-        I_node = torch.eye(y_pred.size()[0]).to_sparse() - I_edge
+    I_node = torch.eye(y_pred.size()[0]).to_sparse() - I_edge
     node_adj = node_adj + I_node
     labels = torch.from_numpy(labels)
-    if cuda:
-        labels = labels.cuda()
     scores = torch.from_numpy(scores)
+
     if cuda:
+        y_pred = y_pred.cuda()
+        states = states.cuda()
+        node_adj = node_adj.cuda()
+        labels = labels.cuda()
         scores = scores.cuda()
 
     return y_pred, y_out, states, node_adj, labels, scores

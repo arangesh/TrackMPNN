@@ -11,7 +11,6 @@ import torch.optim as optim
 
 from models.track_mpnn import TrackMPNN
 from models.loss import create_targets, FocalLoss, CELoss
-from models.dla.model import save_model
 from dataset.kitti_mot import KittiMOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics, compute_map
@@ -20,11 +19,11 @@ from utils.gradients import plot_grad_flow
 
 
 kwargs_train = {'batch_size': 1, 'shuffle': True}
-train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.cur_win_size, args.ret_win_size, args.num_img_feats, 
-                os.path.join('.', 'weights', 'model_last_kitti.pth'), args.random_transforms, args.cuda), **kwargs_train)
+train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
+    args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
 kwargs_val = {'batch_size': 1, 'shuffle': False}
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.cur_win_size, args.ret_win_size, args.num_img_feats, 
-                None, False, args.cuda), **kwargs_val)
+val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
+    args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
@@ -43,7 +42,8 @@ def random_seed(seed_value, use_cuda):
 def train(model, epoch):
     epoch_loss_d, epoch_loss_c, epoch_loss_f, epoch_loss, epoch_f1 = list(), list(), list(), list(), list()
     model.train() # set TrackMPNN model to train mode
-    train_loader.dataset.detector.opt.split = 'train' # set split to train
+    if 'vis' in args.feats:
+        train_loader.dataset.embed_net.train()
     for b_idx, (X_seq, bbox_pred, _, loss_d) in enumerate(train_loader):
         # if no detections in sequence
         if X_seq.size()[1] == 0:
@@ -55,7 +55,7 @@ def train(model, epoch):
         optimizer_trk.zero_grad()
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, mode='train', cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, t_st=0, mode='train', cuda=args.cuda)
         if y_pred is None:
             continue
         scores, logits, states = model(feats, None, node_adj, edge_adj)
@@ -78,15 +78,25 @@ def train(model, epoch):
             idx = idx_edge
         # compute the f1 score
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
-        epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+        epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy(), zero_division=0))
 
         # loop through all frames
+        t_skip = t_st
         for t_cur in range(t_st, t_end):
-            # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
-                use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
-            if feats.size()[0] == 0:
+            if t_cur < t_skip: # if timestep has already been processed
                 continue
+            # if no new detections found and no carried over detections
+            if feats.size()[0] == 0 and states.size()[0] == 0:
+                # reinitialize graph
+                y_pred, feats, node_adj, edge_adj, labels, t_skip, _ = initialize_graph(X_seq, y_seq, t_st=t_cur, mode='train', cuda=args.cuda)
+                if y_pred is None:
+                    break
+                states = None
+            else:
+                # update graph for next timestep
+                y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
+                    use_hungraian=args.hungarian, mode='train', cuda=args.cuda)
+            # run forward pass
             scores, logits, states = model(feats, states, node_adj, edge_adj)
             # compute the loss
             idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
@@ -107,7 +117,7 @@ def train(model, epoch):
                 idx = idx_edge
             # compute the F1 score
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
-            epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+            epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy(), zero_division=0))
 
         epoch_loss_d.append(loss_d.item())
         epoch_loss_c.append(loss_c.item())
@@ -116,12 +126,16 @@ def train(model, epoch):
         epoch_loss.append(loss.item())
         loss.backward()
         optimizer_trk.step()
-        train_loader.dataset.optimizer.step()
+        if 'vis' in args.feats:
+            train_loader.dataset.optimizer.step()
 
-        # save gradient flow image through detector and tracker model
+        # save gradient flow image through embedding net and tracker model
         if (b_idx % 100 == 0) and args.plot_gradients:
-            plot_grad_flow([list(param for param in train_loader.dataset.detector.model.named_parameters() if 'trk' in param[0]),
-                model.named_parameters()], os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
+            if 'vis' in args.feats:
+                plot_grad_flow([train_loader.dataset.embed_net.named_parameters(),
+                    model.named_parameters()], os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
+            else:
+                plot_grad_flow([model.named_parameters()], os.path.join(args.output_dir, 'gradients', 'epoch%.3d_iter%.6d.jpg' % (epoch, b_idx)))
 
         if b_idx % args.log_schedule == 0:
             print('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.5f}'.format(
@@ -137,8 +151,8 @@ def train(model, epoch):
     avg_loss_f = statistics.mean(epoch_loss_f)
     avg_loss = statistics.mean(epoch_loss)
     avg_f1 = statistics.mean(epoch_f1)
-    print("------------------------\nAverage detector loss for epoch = {:.2f}".format(avg_loss_d))
-    f_log.write("------------------------\nAverage detector loss for epoch = {:.2f}\n".format(avg_loss_d))
+    print("------------------------\nAverage embedding loss for epoch = {:.2f}".format(avg_loss_d))
+    f_log.write("------------------------\nAverage embedding loss for epoch = {:.2f}\n".format(avg_loss_d))
     print("Average cross-entropy loss for epoch = {:.2f}".format(avg_loss_c))
     f_log.write("Average cross-entropy loss for epoch = {:.2f}\n".format(avg_loss_c))
     print("Average focal loss for epoch = {:.2f}".format(avg_loss_f))
@@ -146,7 +160,7 @@ def train(model, epoch):
     print("Average loss for epoch = {:.2f}".format(avg_loss))
     f_log.write("Average loss for epoch = {:.2f}\n".format(avg_loss))
     print("Average F1 score for epoch = {:.4f}\n------------------------".format(avg_f1))
-    f_log.write("Average F1 score for epoch = {:.4f}\n".format(avg_f1))
+    f_log.write("Average F1 score for epoch = {:.4f}\n------------------------\n".format(avg_f1))
 
     return model, avg_loss_d, avg_loss_c, avg_loss_f, avg_loss, avg_f1
 
@@ -157,9 +171,10 @@ def val(model, epoch):
     epoch_f1 = list()
     accs = []
     model.eval() # set TrackMPNN model to eval mode
-    val_loader.dataset.detector = train_loader.dataset.detector # use trained detector for the val loader
-    train_loader.dataset.detector = None # set trained detector to None to save memory
-    val_loader.dataset.detector.opt.split = 'val' # set split to val
+    if 'vis' in args.feats:
+        val_loader.dataset.embed_net = train_loader.dataset.embed_net # use trained embedding net for the val loader
+        train_loader.dataset.embed_net = None # set trained embedding net to None to save memory
+        val_loader.dataset.embed_net.eval()
 
     bbox_pred_dict, bbox_gt_dict = {}, {} # initialize dictionaries for computing mAP
     for b_idx, (X_seq, bbox_pred, bbox_gt, _) in enumerate(val_loader):
@@ -174,7 +189,7 @@ def val(model, epoch):
         y_out[:, 1] = -1
 
         # intialize graph and run first forward pass
-        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, mode='test', cuda=args.cuda)
+        y_pred, feats, node_adj, edge_adj, labels, t_st, t_end = initialize_graph(X_seq, y_seq, t_st=0, mode='test', cuda=args.cuda)
         if y_pred is None:
             continue
         # compute the classification scores
@@ -193,13 +208,25 @@ def val(model, epoch):
             idx = idx_edge
         # compute the f1 score
         pred = scores.data.max(1)[1]  # get the index of the max log-probability
-        epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
+        epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy(), zero_division=0))
 
         # loop through all frames
+        t_skip = t_st
         for t_cur in range(t_st, t_end):
-            # update graph for next timestep and run forward pass
-            y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
-                use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
+            if t_cur < t_skip: # if timestep has already been processed
+                continue
+            # if no new detections found and no carried over detections
+            if feats.size()[0] == 0 and states.size()[0] == 0:
+                # reinitialize graph
+                y_pred, feats, node_adj, edge_adj, labels, t_skip, _ = initialize_graph(X_seq, y_seq, t_st=t_cur, mode='test', cuda=args.cuda)
+                if y_pred is None:
+                    break
+                states = None
+            else:
+                # update graph for next timestep
+                y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
+                    use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
+            # run forward pass
             scores, logits, states = model(feats, states, node_adj, edge_adj)
             scores = torch.cat((1-scores, scores), dim=1)
 
@@ -215,11 +242,7 @@ def val(model, epoch):
                 idx = idx_edge
             # compute the f1 score
             pred = scores.data.max(1)[1]  # get the index of the max log-probability
-            epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy()))
-
-            # if no new detections are added, don't remove detections either
-            if feats.size()[0] == 0:
-                continue
+            epoch_f1.append(f1_score(targets[idx].detach().cpu().numpy(), pred[idx].detach().cpu().numpy(), zero_division=0))
 
             if t_cur == t_end - 1:
                 y_pred, y_out, states, node_adj, labels, scores = decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_end, 
@@ -258,8 +281,8 @@ def val(model, epoch):
     for seq_num, _ in enumerate(val_motas):
         print("Validation MOTA for sequence {:d} = {:.2f}%".format(seq_num, val_motas[seq_num]))
     print("Validation MOTA = {:.2f}%".format(val_mota))
-    print("Validation mAP = {:.2f}%\n------------------------".format(val_map))
-    f_log.write("\nValidation F1 score = {:.4f}\n".format(val_f1))
+    print("Validation mAP = {:.2f}%\n------------------------\n".format(val_map))
+    f_log.write("------------------------\nValidation F1 score = {:.4f}\n".format(val_f1))
     for seq_num, _ in enumerate(val_motas):
         f_log.write("Validation MOTA for sequence {:d} = {:.2f}%\n".format(seq_num, val_motas[seq_num]))
     f_log.write("Validation MOTA = {:.2f}%\n".format(val_mota))
@@ -268,12 +291,14 @@ def val(model, epoch):
     # now save the model if it has better MOTA than the best model seen so forward
     if val_mota > best_mota:
         best_mota = val_mota
-        # save the TrackMPNN model and the detector
+        # save the TrackMPNN model and the embedding net
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
-        save_model(os.path.join(args.output_dir, 'dla-detector_' + '%.4d' % (epoch,) + '.pth'), epoch, val_loader.dataset.detector.model, optimizer=None)
+        if 'vis' in args.feats:
+            torch.save(val_loader.dataset.embed_net.state_dict(), os.path.join(args.output_dir, 'vis-net_' + '%.4d' % (epoch,) + '.pth'))
 
-    train_loader.dataset.detector = val_loader.dataset.detector # copy back the trained detector from the val loader
-    val_loader.dataset.detector = None # set detector from val loader to None to save memory
+    if 'vis' in args.feats:
+        train_loader.dataset.embed_net = val_loader.dataset.embed_net # copy back the trained embedding net from the val loader
+        val_loader.dataset.embed_net = None # set embedding net from val loader to None to save memory
 
     return val_f1, val_mota, val_map
 
@@ -283,9 +308,14 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(nfeatures=args.num_img_feats + 5 + 4 + 5, nimgfeatures=args.num_img_feats, 
-        nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
-
+    num_features = 3 # for one-hot category IDs
+    if '2d' in args.feats:
+        num_features += 5
+    if 'temp' in args.feats:
+        num_features += 2
+    if 'vis' in args.feats:
+        num_features += 16
+    model = TrackMPNN(nfeatures=num_features, nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
@@ -303,7 +333,7 @@ if __name__ == '__main__':
 
     fig1, ax1 = plt.subplots()
     plt.grid(True)
-    ax1.plot([], 'r', label='Detector loss')
+    ax1.plot([], 'r', label='Embedding loss')
     ax1.plot([], 'g', label='Cross-entropy loss')
     ax1.plot([], 'b', label='Focal loss')
     ax1.plot([], 'k', label='Total loss')
@@ -333,7 +363,7 @@ if __name__ == '__main__':
         train_f1.append(avg_f1)
 
         # plot the loss
-        ax1.plot(train_loss_d, 'r', label='Detector loss')
+        ax1.plot(train_loss_d, 'r', label='Embedding loss')
         ax1.plot(train_loss_c, 'g', label='Cross-entropy loss')
         ax1.plot(train_loss_f, 'b', label='Focal loss')
         ax1.plot(train_loss, 'k', label='Total loss')

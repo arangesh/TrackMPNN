@@ -1,17 +1,13 @@
 import torch
 import torch.nn as nn
-import torchvision
+import torch.sparse as sp
 
-from models.pointnet.model import PointNetfeatMod
 from models.layers import FactorGraphGRU
 
 
 class TrackMPNN(nn.Module):
-    def __init__(self, nfeatures, nimgfeatures, nhidden, nattheads, msg_type):
+    def __init__(self, nfeatures, nhidden, nattheads, msg_type):
         super(TrackMPNN, self).__init__()
-        self.nimgfeatures = nimgfeatures
-        self.input_norm = nn.BatchNorm1d(self.nimgfeatures, affine=False)
-
         self.input_transform_1 = nn.Linear(nfeatures, nhidden, bias=True)
         self.input_transform_1.weight.data.normal_(mean=0.0, std=0.01)
         self.input_transform_1.bias.data.uniform_(0, 0)
@@ -37,10 +33,9 @@ class TrackMPNN(nn.Module):
         I_edge = torch.diag(torch.diag(edge_adj.to_dense())).to_sparse() # (N', N')
 
         if x.size()[0] > 0:
-            x = torch.cat((self.input_norm(x[:, :self.nimgfeatures]), x[:, self.nimgfeatures:]), dim=1) # (N'-N, nfeatures)
             x = self.input_transform(x) # (N'-N, nhidden)
 
-            h_update = torch.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhidden)
+            h_update = sp.mm(I_node.to_dense()[-x.size()[0]:, -x.size()[0]:].to_sparse(), x) # (N'-N, nhidden)
             if h_in is None: # (N, nhidden)
                 h = h_update # (N', nhidden)
             else:
@@ -49,6 +44,6 @@ class TrackMPNN(nn.Module):
             h = h_in
 
         h_out = self.factor_gru1(h, node_adj, edge_adj) # (N', nhidden)
-        y = torch.mm(I_node, self.output_transform_node(h_out)) + torch.mm(I_edge, self.output_transform_edge(h_out)) # (N', 1)
+        y = sp.mm(I_node, self.output_transform_node(h_out)) + sp.mm(I_edge, self.output_transform_edge(h_out)) # (N', 1)
 
         return self.output_activation(y), y, h_out

@@ -50,8 +50,8 @@ if __name__ == '__main__':
     
     for k, seq in enumerate(seqs):
         if SAVE_VIDEO:
-            fourcc = cv2.VideoWriter_fourcc(*'XVID')
-            video = cv2.VideoWriter('{}.avi'.format(seq[:-4],), fourcc, 10.0, (1024, 375))
+            fourcc = cv2.VideoWriter_fourcc(*'H264')
+            video = cv2.VideoWriter('{}.mp4'.format(seq[:-4],), fourcc, 10.0, (1024, 375))
 
         preds = {}
         pred_file = open(seq, 'r')
