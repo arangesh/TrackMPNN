@@ -35,30 +35,35 @@ def store_bdd100k_results(bbox_pred, y_out, class_dict, output_path):
     times = np.sort(y_out[:, 0])
     t_st = times[0]
     t_ed = times[-1]
+    data = []
+
+    for t in range(t_st, t_ed+1):
+        hids = np.where(np.logical_and(y_out[:, 0] == t, y_out[:, 1] != -1))[0]
+        htracks = y_out[hids, 1]
+        htracks = htracks.astype('int32')
+        assert (htracks.size == np.unique(htracks).size), "Same track ID assigned to two detections from same timestep!"
+
+        cat_ids = bbox_pred[hids, 0]
+        alphas = bbox_pred[hids, 1]
+        bboxs = bbox_pred[hids, 2:6]
+        heights = bbox_pred[hids, 6]
+        widths = bbox_pred[hids, 7]
+        lengths = bbox_pred[hids, 8]
+        locs_x = bbox_pred[hids, 9]
+        locs_y = bbox_pred[hids, 10]
+        locs_z = bbox_pred[hids, 11]
+        r_ys = bbox_pred[hids, 12]
+        scores = bbox_pred[hids, 13]
+
+        labels = []
+        for i in range(scores.size):
+            box2d = {'x1':bboxs[i, 0], 'y1':bboxs[i, 1], 'x2':bboxs[i, 2], 'y2':bboxs[i, 3]}
+            labels.append({'id':htracks[i], 'category':class_dict[int(cat_ids[i])], 'box2d':box2d})
+        d = {'name':os.path.basename(output_path), 'videoName':os.path.basename(output_path), 'frameIndex':int(t), 'labels':labels}
+        data.append(d)
 
     with open(output_path, "w") as f:
-        for t in range(t_st, t_ed+1):
-            hids = np.where(np.logical_and(y_out[:, 0] == t, y_out[:, 1] != -1))[0]
-            htracks = y_out[hids, 1]
-            htracks = htracks.astype('int64')
-            assert (htracks.size == np.unique(htracks).size), "Same track ID assigned to two detections from same timestep!"
-
-            cat_ids = bbox_pred[hids, 0]
-            alphas = bbox_pred[hids, 1]
-            bboxs = bbox_pred[hids, 2:6]
-            heights = bbox_pred[hids, 6]
-            widths = bbox_pred[hids, 7]
-            lengths = bbox_pred[hids, 8]
-            locs_x = bbox_pred[hids, 9]
-            locs_y = bbox_pred[hids, 10]
-            locs_z = bbox_pred[hids, 11]
-            r_ys = bbox_pred[hids, 12]
-            scores = bbox_pred[hids, 13]            
-
-            for i in range(scores.size):
-                f.write("%d %d %s -1 -1 %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n" % \
-                        (t, htracks[i], class_dict[int(cat_ids[i])], alphas[i], bboxs[i, 0], bboxs[i, 1], bboxs[i, 2], \
-                        bboxs[i, 3], heights[i], widths[i], lengths[i], locs_x[i], locs_y[i], locs_z[i], r_ys[i], scores[i]))
+        json.dump(data, f)
 
 
 class BDD100kMOTDataset(data.Dataset):

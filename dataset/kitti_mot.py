@@ -52,7 +52,7 @@ def store_kitti_results(bbox_pred, y_out, class_dict, output_path):
             locs_y = bbox_pred[hids, 10]
             locs_z = bbox_pred[hids, 11]
             r_ys = bbox_pred[hids, 12]
-            scores = bbox_pred[hids, 13]            
+            scores = bbox_pred[hids, 13]
 
             for i in range(scores.size):
                 f.write("%d %d %s -1 -1 %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n" % \
