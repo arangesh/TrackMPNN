@@ -12,6 +12,7 @@ import torch.optim as optim
 from models.track_mpnn import TrackMPNN
 from models.loss import create_targets, FocalLoss, CELoss
 from dataset.kitti_mot import KittiMOTDataset
+from dataset.bdd100k_mot import BDD100kMOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics, compute_map
 from utils.training_options import args
@@ -19,11 +20,18 @@ from utils.gradients import plot_grad_flow
 
 
 kwargs_train = {'batch_size': 1, 'shuffle': True}
-train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
-    args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
-kwargs_val = {'batch_size': 1, 'shuffle': False}
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
-    args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
+if args.dataset == 'kitti':
+    train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
+    kwargs_val = {'batch_size': 1, 'shuffle': False}
+    val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
+elif args.dataset == 'bdd100k':
+    train_loader = DataLoader(BDD100kMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
+    kwargs_val = {'batch_size': 1, 'shuffle': False}
+    val_loader = DataLoader(BDD100kMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
