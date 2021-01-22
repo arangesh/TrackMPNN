@@ -46,18 +46,19 @@ cd DCNv2
 ```
 
 ### Training
-TrackMPNN can be trained for RRC detections as follows:
+TrackMPNN can be trained using RRC detections as follows:
 ```shell
 pipenv shell # activate virtual environment
 python train.py --dataset=kitti --dataset-root-path=/path/to/kitti-mot/ --cur-win-size=5 --detections=rrc --feats=2d --category=Car --no-tp-classifier --random-transforms
 exit # exit virtual environment
 ```
-TrackMPNN can also be trained for CenterTrack detections as follows:
+TrackMPNN can also be trained using CenterTrack detections as follows:
 ```shell
 pipenv shell # activate virtual environment
 python train.py --dataset=kitti --dataset-root-path=/path/to/kitti-mot/ --cur-win-size=5 --detections=centertrack --feats=2d --category=All --no-tp-classifier --random-transforms
 exit # exit virtual environment
 ```
+By default, the model is trained to track `All` object categories, but you can supply the `--category` argument with any one of the following options: `['Pedestrian', 'Car', 'Cyclist', 'All']`.
 
 ### Inference
 Inference on the `testing` split can be carried out using [this](https://github.com/arangesh/TrackMPNN/blob/master/infer.py) script as follows:
@@ -100,18 +101,13 @@ The videos will be stored in the same folder as the inference results.
 ```
 
 ### Training
-TrackMPNN can be trained for RRC detections as follows:
-```shell
-pipenv shell # activate virtual environment
-python train.py --dataset=bdd100k --dataset-root-path=/path/to/bdd100k-mot/ --cur-win-size=5 --detections=rrc --feats=2d --category=Car --no-tp-classifier --random-transforms
-exit # exit virtual environment
-```
-TrackMPNN can also be trained for CenterTrack detections as follows:
+TrackMPNN can be trained using CenterTrack detections as follows:
 ```shell
 pipenv shell # activate virtual environment
 python train.py --dataset=bdd100k --dataset-root-path=/path/to/bdd100k-mot/ --cur-win-size=5 --detections=centertrack --feats=2d --category=All --no-tp-classifier --random-transforms
 exit # exit virtual environment
 ```
+By default, the model is trained to track `All` object categories, but you can supply the `--category` argument with any one of the following options: `['pedestrian', 'rider', 'car', 'bus', 'truck', 'train', 'motorcycle', 'bicycle', 'All']`.
 
 ### Inference
 Inference on the `testing` split can be carried out using [this](https://github.com/arangesh/TrackMPNN/blob/master/infer.py) script as follows:
