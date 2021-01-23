@@ -104,7 +104,7 @@ if __name__ == '__main__':
     random_seed(args.seed, args.cuda)
 
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    num_features = 3# for one-hot category IDs
+    num_features = len(train_loader.dataset.class_dict) # for one-hot category IDs
     if '2d' in args.feats:
         num_features += 5
     if 'temp' in args.feats:

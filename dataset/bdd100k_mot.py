@@ -67,7 +67,7 @@ def store_bdd100k_results(bbox_pred, y_out, class_dict, output_path):
 
 
 class BDD100kMOTDataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='centertrack', feats='2d+temp+vis', embed_arch='espv2', cur_win_size=5, ret_win_size=10, snapshot=None, random_transforms=False, cuda=True):
+    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='hin', feats='2d+temp+vis', embed_arch='espv2', cur_win_size=5, ret_win_size=10, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -150,24 +150,24 @@ class BDD100kMOTDataset(data.Dataset):
         # get tracking batch information 
         self.chunks = self.get_tracking_chunks()
         # load mean values for each feature
-        mean = [0.5, 0.5, 0.5] # one-hot category IDs
+        mean = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
-            if self.detections == 'centertrack':
+            if self.detections == 'hin':
                 mean = mean + [0.78] + [544.57, 171.58, 71.54, 61.50] # 2d features
-            elif self.detections == 'rrc':
-                mean = mean + [0.91] + [577.11, 178.39, 102.48, 58.36] # 2d features
+            #elif self.detections == 'rrc':
+            #    mean = mean + [0.91] + [577.11, 178.39, 102.48, 58.36] # 2d features
         if 'temp' in self.feats:
             mean = mean + [0.0 for _ in range(2*1)] # temporal features
         if 'vis' in self.feats:
             mean = mean + [0.5 for _ in range(self.num_vis_feats)] # visual features
         self.mean = self._convert_to_tensor([mean])
         # load std values for each feature
-        std = [0.5, 0.5, 0.5] # one-hot category IDs
+        std = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
-            if self.detections == 'centertrack':
+            if self.detections == 'hin':
                 std = std + [0.14] + [285.65, 13.94, 69.92, 47.39] # 2d features
-            elif self.detections == 'rrc':
-                std = std + [0.21] + [301.75, 11.55, 78.83, 44.66] # 2d features
+            #elif self.detections == 'rrc':
+            #    std = std + [0.21] + [301.75, 11.55, 78.83, 44.66] # 2d features
         if 'temp' in self.feats:
             std = std + [1.0 for _ in range(2*1)] # temporal features
         if 'vis' in self.feats:
@@ -206,15 +206,15 @@ class BDD100kMOTDataset(data.Dataset):
         chunks = []
         if self.split == 'train':
             for i, seq in enumerate(seqs):
-                for st_fr in range(0, num_frames[i], int(self.cur_win_size / 2)):
-                    fr_list = [fr for fr in range(st_fr, min(st_fr + self.cur_win_size, num_frames[i]))]
+                for st_fr in range(1, num_frames[i]+1, int(self.cur_win_size / 2)):
+                    fr_list = [fr for fr in range(st_fr, min(st_fr + self.cur_win_size, num_frames[i]+1))]
                     skip_fr = random.randint(st_fr + self.cur_win_size, st_fr + self.cur_win_size + self.ret_win_size)
-                    if skip_fr < num_frames[i] - 1:
+                    if skip_fr < num_frames[i]:
                         fr_list = fr_list + [skip_fr, skip_fr + 1]
                     chunks.append([seq, fr_list])
         else:
             for i, seq in enumerate(seqs):
-                chunks.append([seq, [fr for fr in range(0, num_frames[i])]])
+                chunks.append([seq, [fr for fr in range(1, num_frames[i]+1)]])
 
         return chunks
 
@@ -484,7 +484,7 @@ class BDD100kMOTDataset(data.Dataset):
 
         for fr in input_info[1]:
             # load image
-            im = PIL.Image.open(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
+            im = PIL.Image.open(os.path.join(self.im_path, input_info[0], '%.4d.jpg' % (fr,)))
             # apply horizontal flip to image
             if random_transforms_hf:
                 im = im.transpose(PIL.Image.FLIP_LEFT_RIGHT)

@@ -46,7 +46,7 @@ if args.dataset == 'kitti':
 elif args.dataset == 'bdd100k':
     if args.category not in ['pedestrian', 'rider', 'car', 'bus', 'truck', 'train', 'motorcycle', 'bicycle', 'All']:
         assert False, 'Unrecognized object category!'
-    if args.detections not in ['centertrack']:
+    if args.detections not in ['hin']:
         assert False, 'Unrecognized detections!'
     if args.embed_arch not in ['espv2', 'dla34']:
         assert False, 'Unrecognized architecture specified for embedding network!'

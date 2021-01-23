@@ -139,7 +139,7 @@ class KittiMOTDataset(data.Dataset):
         # get tracking batch information 
         self.chunks = self.get_tracking_chunks()
         # load mean values for each feature
-        mean = [0.5, 0.5, 0.5] # one-hot category IDs
+        mean = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
             if self.detections == 'centertrack':
                 mean = mean + [0.78] + [544.57, 171.58, 71.54, 61.50] # 2d features
@@ -151,7 +151,7 @@ class KittiMOTDataset(data.Dataset):
             mean = mean + [0.5 for _ in range(self.num_vis_feats)] # visual features
         self.mean = self._convert_to_tensor([mean])
         # load std values for each feature
-        std = [0.5, 0.5, 0.5] # one-hot category IDs
+        std = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
             if self.detections == 'centertrack':
                 std = std + [0.14] + [285.65, 13.94, 69.92, 47.39] # 2d features
