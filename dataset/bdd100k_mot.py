@@ -153,7 +153,7 @@ class BDD100kMOTDataset(data.Dataset):
         mean = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
             if self.detections == 'hin':
-                mean = mean + [0.78] + [544.57, 171.58, 71.54, 61.50] # 2d features
+                mean = mean + [0.94] + [545.84, 329.28, 85.19, 71.47] # 2d features
             #elif self.detections == 'rrc':
             #    mean = mean + [0.91] + [577.11, 178.39, 102.48, 58.36] # 2d features
         if 'temp' in self.feats:
@@ -165,7 +165,7 @@ class BDD100kMOTDataset(data.Dataset):
         std = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
             if self.detections == 'hin':
-                std = std + [0.14] + [285.65, 13.94, 69.92, 47.39] # 2d features
+                std = std + [0.07] + [294.88, 81.51, 93.51, 75.72] # 2d features
             #elif self.detections == 'rrc':
             #    std = std + [0.21] + [301.75, 11.55, 78.83, 44.66] # 2d features
         if 'temp' in self.feats:
