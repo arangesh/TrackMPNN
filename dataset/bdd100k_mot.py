@@ -206,7 +206,7 @@ class BDD100kMOTDataset(data.Dataset):
         chunks = []
         if self.split == 'train':
             for i, seq in enumerate(seqs):
-                for st_fr in range(1, num_frames[i]+1, int(self.cur_win_size / 2)):
+                for st_fr in range(1, num_frames[i]+1, int(self.cur_win_size)):
                     fr_list = [fr for fr in range(st_fr, min(st_fr + self.cur_win_size, num_frames[i]+1))]
                     skip_fr = random.randint(st_fr + self.cur_win_size, st_fr + self.cur_win_size + self.ret_win_size)
                     if skip_fr < num_frames[i]:
@@ -249,6 +249,7 @@ class BDD100kMOTDataset(data.Dataset):
         label_file = open(os.path.join(self.label_path, seq + '.txt'), 'r')
         for line in label_file:
             tmp = line[:-1].split(' ')
+            tmp[0] = int(tmp[0]) + 1 # frame number in labels start at 0 instead of 1
             if int(tmp[0]) < fr:
                 continue
             elif int(tmp[0]) > fr:
