@@ -249,7 +249,6 @@ class BDD100kMOTDataset(data.Dataset):
         label_file = open(os.path.join(self.label_path, seq + '.txt'), 'r')
         for line in label_file:
             tmp = line[:-1].split(' ')
-            tmp[0] = int(tmp[0]) + 1 # frame number in labels start at 0 instead of 1
             if int(tmp[0]) < fr:
                 continue
             elif int(tmp[0]) > fr:
