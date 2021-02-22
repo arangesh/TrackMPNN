@@ -1,4 +1,5 @@
 import os
+import glob
 import random
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -200,8 +201,7 @@ class KittiMOTDataset(data.Dataset):
             print(seqs)
         else:
             pass
-
-        num_frames = [len(os.listdir(os.path.join(self.im_path, x))) for x in seqs]
+        num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.png'))) for x in seqs]
 
         # Load tracking chunks; each row is [seq_no, st_fr, ed_fr]
         chunks = []

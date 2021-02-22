@@ -1,4 +1,5 @@
 import os
+import glob
 import json
 import random
 import numpy as np
@@ -200,21 +201,21 @@ class BDD100kMOTDataset(data.Dataset):
 
     def get_tracking_chunks(self):
         seqs = sorted(os.listdir(self.im_path))
-        num_frames = [len(os.listdir(os.path.join(self.im_path, x))) for x in seqs]
+        num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.jpg'))) for x in seqs]
 
         # Load tracking chunks; each row is [seq_no, st_fr, ed_fr]
         chunks = []
         if self.split == 'train':
             for i, seq in enumerate(seqs):
-                for st_fr in range(1, num_frames[i]+1, int(self.cur_win_size)):
-                    fr_list = [fr for fr in range(st_fr, min(st_fr + self.cur_win_size, num_frames[i]+1))]
+                for st_fr in range(0, num_frames[i], int(self.cur_win_size)):
+                    fr_list = [fr for fr in range(st_fr, min(st_fr + self.cur_win_size, num_frames[i]))]
                     skip_fr = random.randint(st_fr + self.cur_win_size, st_fr + self.cur_win_size + self.ret_win_size)
-                    if skip_fr < num_frames[i]:
+                    if skip_fr < num_frames[i] - 1:
                         fr_list = fr_list + [skip_fr, skip_fr + 1]
                     chunks.append([seq, fr_list])
         else:
             for i, seq in enumerate(seqs):
-                chunks.append([seq, [fr for fr in range(1, num_frames[i]+1)]])
+                chunks.append([seq, [fr for fr in range(0, num_frames[i])]])
 
         return chunks
 
@@ -334,6 +335,9 @@ class BDD100kMOTDataset(data.Dataset):
             if tmp[0] not in self.cats:
                 continue
             if tmp[0] in list(self.distractors.keys()): # remove boxes related to distractors
+                continue
+
+            if ann['score'] < 0.7:
                 continue
 
             # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
