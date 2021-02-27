@@ -319,7 +319,10 @@ class BDD100kMOTDataset(data.Dataset):
             return bbox_pred
 
         cat_ids = {**self.class_dict, **self.distractors}
-        det_file = open(os.path.join(self.detections_path, seq, '%.4d.txt' % (fr,)), 'r')
+        try:
+            det_file = open(os.path.join(self.detections_path, seq, '%.4d.txt' % (fr,)), 'r')
+        except:
+            return bbox_pred
         for line in det_file:
             tmp = line[:-1].split(',')
 
@@ -335,9 +338,6 @@ class BDD100kMOTDataset(data.Dataset):
             if tmp[0] not in self.cats:
                 continue
             if tmp[0] in list(self.distractors.keys()): # remove boxes related to distractors
-                continue
-
-            if ann['score'] < 0.7:
                 continue
 
             # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
