@@ -187,7 +187,7 @@ def val(model, epoch):
     bbox_pred_dict, bbox_gt_dict = {}, {} # initialize dictionaries for computing mAP
     for b_idx, (X_seq, bbox_pred, bbox_gt, _) in enumerate(val_loader):
         # if no detections in sequence
-        if X_seq.size()[1] == 0:
+        if X_seq.size()[1] == 0 or bbox_gt.shape[1] == 0:
             print('No detections available for sequence...')
             continue
         y_seq = bbox_pred[:, :, :2]
