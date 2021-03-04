@@ -155,8 +155,8 @@ class BDD100kMOTDataset(data.Dataset):
         if '2d' in self.feats:
             if self.detections == 'hin':
                 mean = mean + [0.94] + [545.84, 329.28, 85.19, 71.47] # 2d features
-            #elif self.detections == 'rrc':
-            #    mean = mean + [0.91] + [577.11, 178.39, 102.48, 58.36] # 2d features
+            elif self.detections == 'libra':
+                mean = mean + [0.94] + [545.84, 329.28, 85.19, 71.47] # 2d features
         if 'temp' in self.feats:
             mean = mean + [0.0 for _ in range(2*1)] # temporal features
         if 'vis' in self.feats:
@@ -167,8 +167,8 @@ class BDD100kMOTDataset(data.Dataset):
         if '2d' in self.feats:
             if self.detections == 'hin':
                 std = std + [0.07] + [294.88, 81.51, 93.51, 75.72] # 2d features
-            #elif self.detections == 'rrc':
-            #    std = std + [0.21] + [301.75, 11.55, 78.83, 44.66] # 2d features
+            elif self.detections == 'libra':
+                std = std + [0.07] + [294.88, 81.51, 93.51, 75.72] # 2d features
         if 'temp' in self.feats:
             std = std + [1.0 for _ in range(2*1)] # temporal features
         if 'vis' in self.feats:
@@ -338,6 +338,8 @@ class BDD100kMOTDataset(data.Dataset):
             if tmp[0] not in self.cats:
                 continue
             if tmp[0] in list(self.distractors.keys()): # remove boxes related to distractors
+                continue
+            if ann['score'] <= 0.8:
                 continue
 
             # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]

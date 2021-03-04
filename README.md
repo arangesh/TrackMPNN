@@ -84,7 +84,7 @@ The videos will be stored in the same folder as the inference results.
 ## BDD100K
 ### Dataset
 1) Download and extract the BDD100K multi-object tracking (MOT) dataset (including images, labels, and calibration files).
-2) Download the [HIN detections](https://drive.google.com/file/d/1PIDr9GcTayXw7GtmQ_R7IMm4YiT1eU_W/view?usp=sharing) for `training`, `validation` and `testing` splits and add them to the BDD100K MOT folder. The dataset should be organized as follows:
+2) Download the [HIN and Libra detections](https://drive.google.com/file/d/1PIDr9GcTayXw7GtmQ_R7IMm4YiT1eU_W/view?usp=sharing) for `training`, `validation` and `testing` splits and add them to the BDD100K MOT folder. The dataset should be organized as follows:
 ```plain
 └── bdd100k-mot
     ├── training/
@@ -92,22 +92,25 @@ The videos will be stored in the same folder as the inference results.
     |   └── image_02/
     |   └── label_02/
     |   └── hin_detections/
+    |   └── libra_detections/
     ├── validation/
     |   └── calib/
     |   └── image_02/
     |   └── label_02/
     |   └── hin_detections/
+    |   └── libra_detections/
     └── testing/
         └── calib/
         └── image_02/
         └── hin_detections/
+        └── libra_detections/
 ```
 
 ### Training
 TrackMPNN can be trained using HIN detections as follows:
 ```shell
 pipenv shell # activate virtual environment
-python train.py --dataset=bdd100k --dataset-root-path=/path/to/bdd100k-mot/ --cur-win-size=5 --detections=hin --feats=2d --category=All --no-tp-classifier --random-transforms
+python train.py --dataset=bdd100k --dataset-root-path=/path/to/bdd100k-mot/ --cur-win-size=5 --detections=libra --feats=2d --category=All --no-tp-classifier --random-transforms
 exit # exit virtual environment
 ```
 By default, the model is trained to track `All` object categories, but you can supply the `--category` argument with any one of the following options: `['pedestrian', 'rider', 'car', 'bus', 'truck', 'train', 'motorcycle', 'bicycle', 'All']`.
