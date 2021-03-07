@@ -103,7 +103,7 @@ if __name__ == '__main__':
     # for reproducibility
     random_seed(args.seed, args.cuda)
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(features=args.feats, ncategories=len(train_loader.dataset.class_dict), 
+    model = TrackMPNN(features=args.feats, ncategories=len(infer_loader.dataset.class_dict), 
         nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:

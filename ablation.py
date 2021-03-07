@@ -7,19 +7,24 @@ from torch.utils.data import DataLoader
 
 from models.track_mpnn import TrackMPNN
 from models.loss import create_targets
-from dataset.kitti_mot import KittiMOTDataset
+from dataset.kitti_mot import KittiMOTDataset, store_kitti_results
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics, compute_map
 from utils.infer_options import args
 
 
-kwargs_infer = {'batch_size': 1, 'shuffle': False}
+kwargs_train = {'batch_size': 1, 'shuffle': True}
+kwargs_val = {'batch_size': 1, 'shuffle': False}
 if 'vis' in args.feats:
     vis_snapshot = os.path.join(os.path.dirname(args.snapshot), 'vis-net_' + args.snapshot[-8:])
 else:
     vis_snapshot = None
+train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
+    args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_train)
 val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
-    args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
+    args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_val)
+val_loader.dataset.embed_net = train_loader.dataset.embed_net # use trained embedding net for the val loader
+train_loader.dataset.embed_net = None # set trained embedding net to None to save memory
 
 # create file handles
 f_log = open(os.path.join(args.output_dir, "logs.txt"), "w")
@@ -127,6 +132,9 @@ def val(model):
         bbox_pred_dict[str(b_idx)] = (y_out, bbox_pred)
         bbox_gt_dict[str(b_idx)] = (y_gt, bbox_gt)
 
+        # store results in KITTI format
+        store_kitti_results(bbox_pred, y_out, val_loader.dataset.class_dict, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
+
         print('Done with sequence {} of {}...'.format(b_idx + 1, len(val_loader.dataset)))
 
     # Calculate F1-score
@@ -168,7 +176,7 @@ if __name__ == '__main__':
     # for reproducibility
     random_seed(args.seed, args.cuda)
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    model = TrackMPNN(features=args.feats, ncategories=len(train_loader.dataset.class_dict), 
+    model = TrackMPNN(features=args.feats, ncategories=len(val_loader.dataset.class_dict), 
         nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
