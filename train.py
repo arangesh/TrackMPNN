@@ -153,6 +153,7 @@ def train(model, epoch):
                 epoch, (b_idx + 1), len(train_loader.dataset),
                 100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
 
+    scheduler.step()
     # now that the epoch is completed calculate statistics and store logs
     avg_loss_d = statistics.mean(epoch_loss_d)
     avg_loss_c = statistics.mean(epoch_loss_c)
@@ -314,16 +315,9 @@ def val(model, epoch):
 if __name__ == '__main__':
     # for reproducibility
     random_seed(args.seed, args.cuda)
-
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    num_features = len(train_loader.dataset.class_dict) # for one-hot category IDs
-    if '2d' in args.feats:
-        num_features += 5
-    if 'temp' in args.feats:
-        num_features += 2
-    if 'vis' in args.feats:
-        num_features += 16
-    model = TrackMPNN(nfeatures=num_features, nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
+    model = TrackMPNN(features=args.feats, ncategories=len(train_loader.dataset.class_dict), 
+        nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
@@ -332,6 +326,7 @@ if __name__ == '__main__':
 
     # optimizer for tracker
     optimizer_trk = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    scheduler = optim.lr_scheduler.StepLR(optimizer_trk, step_size=15, gamma=0.2)
 
     # BCE(Focal) loss applied to each node/edge individually
     focal_loss_node = FocalLoss(gamma=0, alpha=None, size_average=True)

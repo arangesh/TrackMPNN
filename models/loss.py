@@ -116,7 +116,7 @@ class CELoss(nn.Module):
 
 
 class EmbeddingLoss(nn.Module):
-    def __init__(self, delta_var=0.5, delta_dist=3.0):
+    def __init__(self, delta_var=0.5, delta_dist=10.0):
         super(EmbeddingLoss, self).__init__()
         self.delta_var = delta_var
         self.delta_dist = delta_dist
@@ -173,10 +173,8 @@ class FairMOTLoss(nn.Module):
         if labels.shape[0] == 0:
             return torch.tensor(0.0).to(features.device)
         unique_ids = np.unique(labels[:, 1]) # get track IDS in chunk
-        ids_dict = {k:v for v, k in enumerate(unique_ids)}
-        for k, v in ids_dict.items():
-            if v >= self.num_vis_feats:
-                ids_dict[k] = -100 # ignore example
+        ids_dict = {k:k%self.num_vis_feats for k in unique_ids}
+        ids_dict[-1] = -100 # ignore example
         _labels = np.vectorize(ids_dict.get)(labels[:, 1]) # map them to integers starting at 0
         _labels = torch.from_numpy(_labels).to(features.device)
 

@@ -82,7 +82,7 @@ class KittiMOTDataset(data.Dataset):
         self.embed_arch = embed_arch
         self.cur_win_size = cur_win_size
         self.ret_win_size = ret_win_size
-        self.num_vis_feats = 16 # number of visual features to be used for tracking
+        self.num_vis_feats = 128 # number of visual features to be used for tracking
         self.input_h, self.input_w = 384, 1280
         self.snapshot = snapshot
         self.random_transforms = random_transforms
