@@ -17,14 +17,15 @@ kwargs_train = {'batch_size': 1, 'shuffle': True}
 kwargs_val = {'batch_size': 1, 'shuffle': False}
 if 'vis' in args.feats:
     vis_snapshot = os.path.join(os.path.dirname(args.snapshot), 'vis-net_' + args.snapshot[-8:])
+    train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_train)
+    val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_val)
+    val_loader.dataset.embed_net = train_loader.dataset.embed_net # use trained embedding net for the val loader
+    train_loader.dataset.embed_net = None # set trained embedding net to None to save memory
 else:
-    vis_snapshot = None
-train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
-    args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_train)
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
-    args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_val)
-val_loader.dataset.embed_net = train_loader.dataset.embed_net # use trained embedding net for the val loader
-train_loader.dataset.embed_net = None # set trained embedding net to None to save memory
+    val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
 
 # create file handles
 f_log = open(os.path.join(args.output_dir, "logs.txt"), "w")
