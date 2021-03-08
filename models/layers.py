@@ -39,9 +39,9 @@ class GraphAttentionLayer(nn.Module): # adapted from https://github.com/Diego999
         h_prime = sp.mm((attention * edge_adj).to_sparse(), h) # (N, F)
 
         if self.concat:
-            return F.elu(h_prime)
+            return F.elu(h_prime), attention
         else:
-            return h_prime
+            return h_prime, attention
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' + str(self.in_features) + ' -> ' + str(self.out_features) + ')'
@@ -96,15 +96,19 @@ class FactorGraphGRU(nn.Module):
         edge_output = self.edge_gru(node_support, h)
 
         # edge_support: sum(alpha_ei*h_ei)
+        attention = []
         node_adj_norm, edge_adj_norm = node_adj_norm.to_dense(), edge_adj_norm.to_dense()
-        edge_support = self.gat[0](h, node_adj_norm, edge_adj_norm)
+        edge_support, _att = self.gat[0](h, node_adj_norm, edge_adj_norm)
+        attention.append(_att)
         for i in range(1, self.nattheads):
-            edge_support = edge_support + self.gat[i](h, node_adj_norm, edge_adj_norm)
+        	_e_supp, _att = self.gat[i](h, node_adj_norm, edge_adj_norm)
+        	edge_support += _e_supp
+        	attention.append(_att)
         edge_support = edge_support / self.nattheads
         # node_output: GRU(h_n(t-1), edge_support)
         node_output = self.node_gru(edge_support, h)
 
-        return sp.mm(I_edge, edge_output) + sp.mm(I_node, node_output)
+        return sp.mm(I_edge, edge_output) + sp.mm(I_node, node_output), attention
 
     def __repr__(self):
         return self.__class__.__name__ + ' (' \

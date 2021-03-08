@@ -1,6 +1,11 @@
 import os
+import pickle
 import statistics
+import matplotlib
+matplotlib.use('Agg') 
+import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
+import glob
 
 import torch
 from torch.utils.data import DataLoader
@@ -36,8 +41,54 @@ def random_seed(seed_value, use_cuda):
     if use_cuda:
         torch.backends.cudnn.deterministic = True  #needed
 
+def store_att_weights(folder, sequence_index, data):
+    # labels, y_pred
+    labels = data[0]
+    y_pred = data[1]
 
-# validation function
+    # if using multiple sets of features, choose which attention weights to save
+    feature_set = 0
+    if len(data) == 3:
+        attention = [att.cpu().detach().numpy() for att in data[2][feature_set]]
+        dict_to_pickle = {'labels' : labels.cpu().numpy(), 'y_pred' : y_pred.cpu().numpy(),
+                        'attention' : attention}
+    else:
+        dict_to_pickle = {'labels' : labels.cpu().numpy(), 'y_pred' : y_pred.cpu().numpy()}
+    path = os.path.join(folder, f"{sequence_index}.p")
+
+    with open(path, "wb" ) as f:
+        pickle.dump( dict_to_pickle, f)
+
+def plot_att_distribution():
+    results = [{'tp' : [], 'fp' : []} for i in range(args.num_att_heads)]
+
+    for file in glob.glob(os.path.join(args.output_dir, '*.p')):
+        with open(file, 'rb') as f:
+            data = pickle.load(f)
+
+        labels = data['labels']
+        y_pred = data['y_pred']
+        attention = data['attention']
+
+        N = attention[0].shape[0]
+        for row_index in range(N):
+            if y_pred[row_index][0] != -1:
+                for col_index in range(N):
+                    for i, attention_i in enumerate(attention):
+                        if attention_i[row_index][col_index] > 0:
+                            if labels[col_index] == 1:
+                                results[i]['tp'].append(attention_i[row_index][col_index])
+                            else:
+                                results[i]['fp'].append(attention_i[row_index][col_index])
+
+    for i in range(args.num_att_heads):
+        fig, ax = plt.subplots(2, 1, figsize=(6.4, 4.8*len(results)))
+        num_bins = 100
+        ax[0].hist(results[1]['tp'], num_bins, range=(0.0, 0.7), density=True, stacked=True)
+        ax[1].hist(results[1]['fp'], num_bins, range=(0.0, 0.7), density=True, stacked=True)
+        fig.savefig(os.path.join(args.output_dir, 'att_dist_%d.jpg' % (i,)))
+        plt.close('all')
+
 def val(model):
     epoch_f1 = list()
     accs = []
@@ -46,9 +97,10 @@ def val(model):
         val_loader.dataset.embed_net.eval()
 
     bbox_pred_dict, bbox_gt_dict = {}, {} # initialize dictionaries for computing mAP
+    _att_ind = 0
     for b_idx, (X_seq, bbox_pred, bbox_gt, _) in enumerate(val_loader):
         # if no detections in sequence
-        if X_seq.size()[1] == 0:
+        if X_seq.size()[1] == 0 or bbox_gt.shape[1] == 0:
             print('No detections available for sequence...')
             continue
         y_seq = bbox_pred[:, :, :2]
@@ -62,7 +114,7 @@ def val(model):
         if y_pred is None:
             continue
         # compute the classification scores
-        scores, logits, states = model(feats, None, node_adj, edge_adj)
+        scores, logits, states, _ = model(feats, None, node_adj, edge_adj)
         scores = torch.cat((1-scores, scores), dim=1)
 
         idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
@@ -96,7 +148,9 @@ def val(model):
                 y_pred, feats, node_adj, edge_adj, labels = update_graph(node_adj, labels, scores, y_pred, X_seq, y_seq, t_cur, 
                     use_hungraian=args.hungarian, mode='test', cuda=args.cuda)
             # run forward pass
-            scores, logits, states = model(feats, states, node_adj, edge_adj)
+            scores, logits, states, attention = model(feats, states, node_adj, edge_adj)
+            store_att_weights(args.output_dir, _att_ind, [labels, y_pred, attention])
+            _att_ind += 1
             scores = torch.cat((1-scores, scores), dim=1)
 
             idx_edge = torch.nonzero((y_pred[:, 0] == -1))[:, 0]
@@ -130,11 +184,8 @@ def val(model):
         if acc is not None:
             accs.append(acc)
         # store values for computing mAP
-        bbox_pred_dict[str(b_idx)] = (y_out, bbox_pred)
+        bbox_pred_dict[str(b_idx)] = (y_out[y_out[:, 1] >= 0, :], bbox_pred[y_out[:, 1] >= 0, :])
         bbox_gt_dict[str(b_idx)] = (y_gt, bbox_gt)
-
-        # store results in KITTI format
-        store_kitti_results(bbox_pred, y_out, val_loader.dataset.class_dict, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
 
         print('Done with sequence {} of {}...'.format(b_idx + 1, len(val_loader.dataset)))
 
@@ -172,16 +223,17 @@ def val(model):
 
     return
 
-
-if __name__ == '__main__':
+if __name__ == '__main__': 
     # for reproducibility
     random_seed(args.seed, args.cuda)
     # get the model, load pretrained weights, and convert it into cuda for if necessary
     model = TrackMPNN(features=args.feats, ncategories=len(val_loader.dataset.class_dict), 
         nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
-    model.load_state_dict(torch.load(args.snapshot), strict=True)
+    if args.snapshot is not None:
+        model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
         model.cuda()
     print(model)
 
     val(model)
+    plot_att_distribution()

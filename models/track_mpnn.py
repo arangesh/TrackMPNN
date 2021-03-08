@@ -67,8 +67,9 @@ class TrackMPNN(nn.Module):
         else:
             hs = torch.split(h_in, self.nhidden, dim=1) # [(N, nhidden),]
 
-        hs_out = [self.factor_grus[_](_h, node_adj, edge_adj) for _, _h in enumerate(hs)] # [(N', nhidden),]
+        hs_att_out = [self.factor_grus[_](_h, node_adj, edge_adj) for _, _h in enumerate(hs)] # [(N', nhidden),]
+        hs_out, attention = zip(*hs_att_out)
         h_out = torch.cat(hs_out, dim=1) # (N', 3*nhidden)
         y = sp.mm(I_node, self.output_transform_node(h_out)) + sp.mm(I_edge, self.output_transform_edge(h_out)) # (N', 1)
 
-        return self.output_activation(y), y, h_out
+        return self.output_activation(y), y, h_out, attention
