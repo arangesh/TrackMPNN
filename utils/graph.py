@@ -107,8 +107,8 @@ def initialize_graph(X, y, t_st=0, mode='test', cuda=True):
                    id of the current node, and the detection id of next associated node
     feats [N, NUM_FEATS]: Input features for each node in graph (includes detection
                           nodes and edge nodes (0s))
-    node_adj [N, N]: Adjacency matrix for updating detection
-    edge_adj [N, N]: Adjacency matrix for updating edge nodes
+    node_adj [N, N]: Adjacency matrix for updating association nodes
+    edge_adj [N, N]: Adjacency matrix for updating detection nodes
     labels [N,]: Binary class for each node
     t1+1 scalar: Scalar value indicating next timestep to be processed
     tN+1 scalar: Scalar value indicating the last timestep in the sequence
@@ -191,7 +191,7 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
     This is a function for updating the graph with detections from timestep t and performing
     other upkeep operations.
 
-    node_adj [N, N]: Adjacency matrix for updating detection nodes
+    node_adj [N, N]: Adjacency matrix for updating association nodes
     labels [N,]: Binary class for each node
     scores [N, 2]: Predicted binary class probabilities for each node
     y_pred [N, 3]: Array where each row is [ts, det_id, ass_id] indicating the associated detection
@@ -340,7 +340,7 @@ def prune_graph(states, node_adj, labels, scores, y_pred, t_st, t_ed, threshold=
 
     states [N, NUM_HIDDEN]: Hidden states for each node in graph
                           nodes and edge nodes (0s))
-    node_adj [N, N]: Adjacency matrix for updating detection nodes
+    node_adj [N, N]: Adjacency matrix for updating association nodes
     labels [N,]: Binary class for each node
     scores [N, 2]: Predicted binary class probabilities for each node
     y_pred [N, 3]: Array where each row is [ts, det_id, ass_id] indicating the associated detection
@@ -398,7 +398,7 @@ def decode_tracks(states, node_adj, labels, scores, y_pred, y_out, t_upto, ret_w
     while carrying forward tracks from the past.
 
     states [N, NUM_HIDDEN]: Hidden states for each node in graph
-    node_adj [N, N]: Adjacency matrix for updating detection nodes
+    node_adj [N, N]: Adjacency matrix for updating association nodes
     labels [N,]: Binary class for each node
     scores [N, 2]: Predicted binary class probabilities for each node
     y_pred [N, 3]: Array where each row is [ts, det_id, ass_id] indicating the associated detection
