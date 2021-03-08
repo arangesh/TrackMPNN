@@ -339,7 +339,7 @@ class BDD100kMOTDataset(data.Dataset):
                 continue
             if tmp[0] in list(self.distractors.keys()): # remove boxes related to distractors
                 continue
-            if ann['score'] <= 0.8:
+            if ann['score'] <= 0.2:
                 continue
 
             # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]

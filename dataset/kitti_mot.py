@@ -192,12 +192,12 @@ class KittiMOTDataset(data.Dataset):
         seqs = sorted(os.listdir(self.im_path))
         # seqs 13, 16 and 17 have very few or no cars at all
         if self.split == 'train':
-            #seqs = seqs[0:16] + [seqs[17], seqs[19]]
-            seqs = seqs[:11]
+            seqs = seqs[0:16] + [seqs[17], seqs[19]]
+            #seqs = seqs[:11]
             print(seqs)
         elif self.split == 'val':
-            #seqs = [seqs[16], seqs[18], seqs[20]]
-            seqs = seqs[11:]
+            seqs = [seqs[16], seqs[18], seqs[20]]
+            #seqs = seqs[11:]
             print(seqs)
         else:
             pass

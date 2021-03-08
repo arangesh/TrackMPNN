@@ -269,7 +269,7 @@ def val(model, epoch):
         if acc is not None:
             accs.append(acc)
         # store values for computing mAP
-        bbox_pred_dict[str(b_idx)] = (y_out, bbox_pred)
+        bbox_pred_dict[str(b_idx)] = (y_out[y_out[:, 1] >= 0, :], bbox_pred[y_out[:, 1] >= 0, :])
         bbox_gt_dict[str(b_idx)] = (y_gt, bbox_gt)
 
         print('Done with sequence {} of {}...'.format(b_idx + 1, len(val_loader.dataset)))
