@@ -4,7 +4,7 @@ import torch.sparse as sp
 import torch.nn.functional as F
 
 
-class GraphAttentionLayer(nn.Module): # adopted from https://github.com/Diego999/pyGAT
+class GraphAttentionLayer(nn.Module): # adapted from https://github.com/Diego999/pyGAT
     """
     Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
     """
@@ -30,8 +30,8 @@ class GraphAttentionLayer(nn.Module): # adopted from https://github.com/Diego999
         h_minus = sp.mm((node_adj < 0).float().to_sparse(), h)
         a_input_plus = torch.cat((h_plus, h_minus), dim=1) # (N, 2F)
         a_input_minus = torch.cat((h_minus, h_plus), dim=1) # (N, 2F)
-        e_plus = self.leakyrelu(torch.matmul(a_input_plus, self.a)).repeat(1, N) # (N, N)
-        e_minus = self.leakyrelu(torch.matmul(a_input_minus, self.a)).repeat(1, N) # (N, N)
+        e_plus = self.leakyrelu(torch.matmul(a_input_plus, self.a)).transpose(0, 1).repeat(N, 1) # (N, N)
+        e_minus = self.leakyrelu(torch.matmul(a_input_minus, self.a)).transpose(0, 1).repeat(N, 1) # (N, N)
 
         attention = torch.where(edge_adj > 0, e_plus, torch.tensor(-9e15).to(e_plus.device)) # (N, N)
         attention = torch.where(edge_adj < 0, e_minus, attention) # (N, N)
