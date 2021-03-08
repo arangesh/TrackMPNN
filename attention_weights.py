@@ -61,8 +61,9 @@ def store_att_weights(folder, sequence_index, data):
 
 def plot_att_distribution():
     results = [{'tp' : [], 'fp' : []} for i in range(args.num_att_heads)]
+    filelist = glob.glob(os.path.join(args.output_dir, '*.p'))
 
-    for file in glob.glob(os.path.join(args.output_dir, '*.p')):
+    for count, file in enumerate(filelist):
         with open(file, 'rb') as f:
             data = pickle.load(f)
 
@@ -80,14 +81,15 @@ def plot_att_distribution():
                                 results[i]['tp'].append(attention_i[row_index][col_index])
                             else:
                                 results[i]['fp'].append(attention_i[row_index][col_index])
+        print("Completed processing file %d/%d..." % (count, len(filelist)))
 
-    for i in range(args.num_att_heads):
-        fig, ax = plt.subplots(2, 1, figsize=(6.4, 4.8*len(results)))
+    fig_ax = [plt.subplots(2, 1, figsize=(6.4, 4.8*len(results))) for _ in range(args.num_att_heads)]
+    for i, (fig, ax) in enumerate(fig_ax):
         num_bins = 100
-        ax[0].hist(results[1]['tp'], num_bins, range=(0.0, 0.7), density=True, stacked=True)
-        ax[1].hist(results[1]['fp'], num_bins, range=(0.0, 0.7), density=True, stacked=True)
+        ax[0].hist(results[i]['tp'], num_bins, range=(0.0, 0.7), density=True, stacked=True)
+        ax[1].hist(results[i]['fp'], num_bins, range=(0.0, 0.7), density=True, stacked=True)
         fig.savefig(os.path.join(args.output_dir, 'att_dist_%d.jpg' % (i,)))
-        plt.close('all')
+    plt.close('all')
 
 def val(model):
     epoch_f1 = list()
