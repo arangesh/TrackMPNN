@@ -76,7 +76,7 @@ def plot_att_distribution():
             if y_pred[row_index][0] != -1:
                 for col_index in range(N):
                     for i, attention_i in enumerate(attention):
-                        if attention_i[row_index][col_index] > 0:
+                        if attention_i[row_index][col_index] > 0 and y_pred[col_index][0] == -1:
                             if labels[col_index] == 1:
                                 results[i]['tp'].append(attention_i[row_index][col_index])
                             else:
@@ -236,6 +236,9 @@ if __name__ == '__main__':
     if args.cuda:
         model.cuda()
     print(model)
+    #print(model.factor_grus[0].gat[0].a.transpose(0, 1))
+    #print(model.factor_grus[0].gat[1].a.transpose(0, 1))
+    #print(model.factor_grus[0].gat[2].a.transpose(0, 1))
 
     val(model)
     plot_att_distribution()
