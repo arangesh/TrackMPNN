@@ -35,7 +35,7 @@ def hungarian(node_adj, scores, y_pred, t, threshold=0.5):
     This is a function that provides the optimal linear assignment for a set of detections
     from a given timestep using the Hungarian algorithm
 
-    node_adj [N, N]: Adjacency matrix for updating detection nodes
+    node_adj [N, N]: Adjacency matrix for updating association nodes
     scores [N, 2]: Predicted binary class probabilities for each node
     y_pred [N, 3]: Array where each row is [ts, det_id, ass_id] indicating the associated detection
                    for each node i.e. ith row entry indicates the timestep of current node, detection
@@ -205,7 +205,7 @@ def update_graph(node_adj, labels, scores, y_pred, X, y, t, use_hungraian=True, 
     y_pred [N', 3]: Updated y_pred
     feats [N'-N, NUM_FEATS]: input feats for new nodes and edges
     node_adj [N', N']: Updated node_adj
-    edge_adj [N', N']: Updated edge
+    edge_adj [N', N']: Updated edge_adj
     labels [N',]: Updated labels
     """
     # remove dummy batch node (only support batch size 1)
