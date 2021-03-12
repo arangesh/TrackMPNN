@@ -301,8 +301,10 @@ def val(model, epoch):
         best_mota = val_mota
         # save the TrackMPNN model and the embedding net
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
+        torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_best.pth'))
         if 'vis' in args.feats:
             torch.save(val_loader.dataset.embed_net.state_dict(), os.path.join(args.output_dir, 'vis-net_' + '%.4d' % (epoch,) + '.pth'))
+            torch.save(val_loader.dataset.embed_net.state_dict(), os.path.join(args.output_dir, 'vis-net_best.pth'))
 
     if 'vis' in args.feats:
         train_loader.dataset.embed_net = val_loader.dataset.embed_net # copy back the trained embedding net from the val loader
