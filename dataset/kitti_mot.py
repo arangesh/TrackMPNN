@@ -13,7 +13,7 @@ import torch.optim as optim
 import torchvision.transforms as transforms
 
 from utils.misc import vectorized_iou, vectorized_iom
-from models.dla.pose_dla_dcn import get_pose_net
+#from models.dla.pose_dla_dcn import get_pose_net
 from models.espv2.SegmentationModel import EESPNet_Seg
 from models.loss import EmbeddingLoss, FairMOTLoss
 
