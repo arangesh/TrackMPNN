@@ -16,6 +16,7 @@ class GraphAttentionLayer(nn.Module): # adapted from https://github.com/Diego999
         self.concat = concat
 
         self.W = nn.Parameter(torch.zeros(size=(in_features, out_features)))
+        self.W_att = nn.Parameter(torch.zeros(size=(in_features, out_features)))
         nn.init.xavier_uniform_(self.W.data, gain=1.414)
         self.a = nn.Parameter(torch.zeros(size=(2*out_features, 1)))
         nn.init.xavier_uniform_(self.a.data, gain=1.414)
@@ -24,10 +25,11 @@ class GraphAttentionLayer(nn.Module): # adapted from https://github.com/Diego999
 
     def forward(self, h, node_adj, edge_adj):
         h = torch.mm(h, self.W) # (N, F)
+        h_att = torch.mm(h, self.W_att) # (N, F)
         N = h.size()[0]
 
-        h_plus = sp.mm((node_adj > 0).float().to_sparse(), h)
-        h_minus = sp.mm((node_adj < 0).float().to_sparse(), h)
+        h_plus = sp.mm((node_adj > 0).float().to_sparse(), h_att)
+        h_minus = sp.mm((node_adj < 0).float().to_sparse(), h_att)
         a_input_plus = torch.cat((h_plus, h_minus), dim=1) # (N, 2F)
         a_input_minus = torch.cat((h_minus, h_plus), dim=1) # (N, 2F)
         e_plus = self.leakyrelu(torch.matmul(a_input_plus, self.a)).transpose(0, 1).repeat(N, 1) # (N, N)
