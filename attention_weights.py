@@ -1,9 +1,19 @@
 import os
 import pickle
 import statistics
+import numpy as np
 import matplotlib
-matplotlib.use('Agg') 
+matplotlib.use('Agg')
+import matplotlib.font_manager
 import matplotlib.pyplot as plt
+nice_fonts = {
+    "text.usetex": False,
+    "font.family": "serif",
+    "font.serif" : "Arial",
+}
+matplotlib.rcParams.update(nice_fonts)
+plt.rcParams['font.size'] = 18
+plt.rcParams['axes.linewidth'] = 2
 from sklearn.metrics import f1_score
 import glob
 
@@ -83,12 +93,23 @@ def plot_att_distribution():
                                 results[i]['fp'].append(attention_i[row_index][col_index])
         print("Completed processing file %d/%d..." % (count, len(filelist)))
 
-    fig_ax = [plt.subplots(2, 1, figsize=(6.4, 4.8*len(results))) for _ in range(args.num_att_heads)]
-    for i, (fig, ax) in enumerate(fig_ax):
-        num_bins = 100
-        ax[0].hist(results[i]['tp'], num_bins, range=(0.0, 0.7), density=True, stacked=True)
-        ax[1].hist(results[i]['fp'], num_bins, range=(0.0, 0.7), density=True, stacked=True)
-        fig.savefig(os.path.join(args.output_dir, 'att_dist_%d.jpg' % (i,)))
+    fig, ax = plt.subplots(2, args.num_att_heads, sharex=True, figsize=(6.8*args.num_att_heads, 4.5*len(results)))
+    for i in range(args.num_att_heads):
+        num_bins = 50
+        ax[0, i].hist(results[i]['tp'], num_bins, color='gray', range=(0.0, 1.0), 
+            density=False, stacked=True, edgecolor='black', linewidth=1.2, 
+            weights=np.ones_like(results[i]['tp'])/float(len(results[i]['tp'])))
+        ax[0, i].grid(True)
+        ax[1, i].hist(results[i]['fp'], num_bins, color='gray', range=(0.0, 1.0), 
+            density=False, stacked=True, edgecolor='black', linewidth=1.2, 
+            weights=np.ones_like(results[i]['fp'])/float(len(results[i]['fp'])))
+        ax[1, i].grid(True)
+
+        ax[0, i].set_title('Attention head #%d' % (i, ))
+        ax[1, i].set_xlabel(r'Attention weights')
+    ax[0, 0].set_ylabel('Normalized count for \ncorrect associations')
+    ax[1, 0].set_ylabel('Normalized count for \nincorrect associations')
+    fig.savefig(os.path.join(args.output_dir, 'att_dist.jpg'), dpi=300, transparent=False, bbox_inches='tight')
     plt.close('all')
 
 def val(model):
@@ -236,9 +257,6 @@ if __name__ == '__main__':
     if args.cuda:
         model.cuda()
     print(model)
-    #print(model.factor_grus[0].gat[0].a.transpose(0, 1))
-    #print(model.factor_grus[0].gat[1].a.transpose(0, 1))
-    #print(model.factor_grus[0].gat[2].a.transpose(0, 1))
 
     val(model)
     plot_att_distribution()
