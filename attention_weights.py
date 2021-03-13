@@ -12,7 +12,7 @@ nice_fonts = {
     "font.serif" : "Arial",
 }
 matplotlib.rcParams.update(nice_fonts)
-plt.rcParams['font.size'] = 18
+plt.rcParams['font.size'] = 30
 plt.rcParams['axes.linewidth'] = 2
 from sklearn.metrics import f1_score
 import glob
@@ -93,23 +93,21 @@ def plot_att_distribution():
                                 results[i]['fp'].append(attention_i[row_index][col_index])
         print("Completed processing file %d/%d..." % (count, len(filelist)))
 
-    fig, ax = plt.subplots(2, args.num_att_heads, sharex=True, figsize=(6.8*args.num_att_heads, 4.5*len(results)))
+    fig, ax = plt.subplots(args.num_att_heads, 2, sharex=True, figsize=(4.6*len(results), 5.2*args.num_att_heads))
+    num_bins = 25
     for i in range(args.num_att_heads):
-        num_bins = 50
-        ax[0, i].hist(results[i]['tp'], num_bins, color='gray', range=(0.0, 1.0), 
+        ax[i, 0].hist(results[i]['tp'], num_bins, color='gray', range=(0.0, 1.0), 
             density=False, stacked=True, edgecolor='black', linewidth=1.2, 
             weights=np.ones_like(results[i]['tp'])/float(len(results[i]['tp'])))
-        ax[0, i].grid(True)
-        ax[1, i].hist(results[i]['fp'], num_bins, color='gray', range=(0.0, 1.0), 
+        ax[i, 0].grid(True)
+        ax[i, 1].hist(results[i]['fp'], num_bins, color='gray', range=(0.0, 1.0), 
             density=False, stacked=True, edgecolor='black', linewidth=1.2, 
             weights=np.ones_like(results[i]['fp'])/float(len(results[i]['fp'])))
-        ax[1, i].grid(True)
-
-        ax[0, i].set_title('Attention head #%d' % (i, ))
-        ax[1, i].set_xlabel(r'Attention weights')
-    ax[0, 0].set_ylabel('Normalized count for \ncorrect associations')
-    ax[1, 0].set_ylabel('Normalized count for \nincorrect associations')
-    fig.savefig(os.path.join(args.output_dir, 'att_dist.jpg'), dpi=300, transparent=False, bbox_inches='tight')
+        ax[i, 1].grid(True)
+        ax[i, 0].set_ylabel('Normalized count for \nattention head #%d' % (i, ))
+    ax[args.num_att_heads-1, 0].set_xlabel('Attention weights for\ncorrect associations')
+    ax[args.num_att_heads-1, 1].set_xlabel('Attention weights for\nincorrect associations')
+    fig.savefig(os.path.join(args.output_dir, 'att_dist.png'), transparent=False, bbox_inches='tight')
     plt.close('all')
 
 def val(model):
@@ -258,5 +256,6 @@ if __name__ == '__main__':
         model.cuda()
     print(model)
 
-    val(model)
+    #val(model)
+    args.output_dir = './experiments/2021-03-12-17:52-infer'
     plot_att_distribution()
