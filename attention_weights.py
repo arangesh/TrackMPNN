@@ -256,6 +256,5 @@ if __name__ == '__main__':
         model.cuda()
     print(model)
 
-    #val(model)
-    args.output_dir = './experiments/2021-03-12-17:52-infer'
+    val(model)
     plot_att_distribution()
