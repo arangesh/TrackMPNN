@@ -48,7 +48,7 @@ class FactorGraphGRU(nn.Module):
     """
     Similar to GCN, except different GRU cells for nodes and edges (i.e. variables and factors)
     """
-    def __init__(self, nhidden, nattheads=3, msg_type='diff', bias=True):
+    def __init__(self, nhidden, nattheads=0, msg_type='diff', bias=True):
         super(FactorGraphGRU, self).__init__()
         self.nhidden = nhidden
         self.msg_type = msg_type
@@ -60,7 +60,10 @@ class FactorGraphGRU(nn.Module):
             self.edge_gru = nn.GRUCell(nhidden, nhidden, bias=self.bias)
         else:
             assert False, 'Incorrect message type for model!'
-        self.gat = nn.ModuleList([GraphAttentionLayer(nhidden, nhidden) for _ in range(self.nattheads)])
+        if self.nattheads <= 0:
+            self.gat = None
+        else:
+            self.gat = nn.ModuleList([GraphAttentionLayer(nhidden, nhidden) for _ in range(self.nattheads)])
         self.node_gru = nn.GRUCell(nhidden, nhidden, bias=self.bias)
         self.reset_parameters()
 
@@ -94,10 +97,13 @@ class FactorGraphGRU(nn.Module):
 
         # edge_support: sum(alpha_ei*h_ei)
         node_adj_norm, edge_adj_norm = node_adj_norm.to_dense(), edge_adj_norm.to_dense()
-        edge_support = self.gat[0](h, node_adj_norm, edge_adj_norm)
-        for i in range(1, self.nattheads):
-            edge_support = edge_support + self.gat[i](h, node_adj_norm, edge_adj_norm)
-        edge_support = edge_support / self.nattheads
+        if self.gat is None:
+            edge_support = sp.mm(edge_adj_norm.to_sparse(), h) # (N, F)
+        else:
+            edge_support = self.gat[0](h, node_adj_norm, edge_adj_norm)
+            for i in range(1, self.nattheads):
+                edge_support = edge_support + self.gat[i](h, node_adj_norm, edge_adj_norm)
+            edge_support = edge_support / self.nattheads
         # node_output: GRU(h_n(t-1), edge_support)
         node_output = self.node_gru(edge_support, h)
 

@@ -20,7 +20,7 @@ parser.add_argument('--ret-win-size', type=int, default=0, help='number of times
 parser.add_argument('--hungarian', action='store_true', default=False, help='decode tracks using frame-by-frame Hungarian algorithm')
 parser.add_argument('--no-tp-classifier', action='store_true', default=False, help='train network to only classify edges')
 parser.add_argument('--num-hidden-feats', type=int, default=64, help='number of hidden layer nodes')
-parser.add_argument('--num-att-heads', type=int, default=3, help='number of attention heads')
+parser.add_argument('--num-att-heads', type=int, default=0, help='number of attention heads')
 parser.add_argument('--msg-type', type=str, default='diff', help='type of message passing operation: diff/concat')
 parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train for')
 parser.add_argument('--learning-rate', type=float, default=0.0001, help='learning rate')
