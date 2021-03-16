@@ -7,7 +7,7 @@ import torch
 
 parser = argparse.ArgumentParser('Options for training TrackMPNN models in PyTorch...')
 
-parser.add_argument('--dataset', type=str, default='kitti', help='dataset to train on: kitti/bdd100k')
+parser.add_argument('--dataset', type=str, default='kitti', help='dataset to train on: kitti/bdd100k/mot20')
 parser.add_argument('--dataset-root-path', type=str, default='/home/akshay/data/kitti-mot', help='path to dataset')
 parser.add_argument('--output-dir', type=str, default=None, help='output directory for model and logs')
 parser.add_argument('--snapshot', type=str, default=None, help='use a pre-trained model snapshot')
@@ -47,6 +47,13 @@ elif args.dataset == 'bdd100k':
     if args.category not in ['pedestrian', 'rider', 'car', 'bus', 'truck', 'train', 'motorcycle', 'bicycle', 'All']:
         assert False, 'Unrecognized object category!'
     if args.detections not in ['hin', 'libra']:
+        assert False, 'Unrecognized detections!'
+    if args.embed_arch not in ['espv2', 'dla34']:
+        assert False, 'Unrecognized architecture specified for embedding network!'
+elif args.dataset == 'mot20':
+    if args.category not in ['pedestrian', 'All']:
+        assert False, 'Unrecognized object category!'
+    if args.detections not in ['mot20_det']:
         assert False, 'Unrecognized detections!'
     if args.embed_arch not in ['espv2', 'dla34']:
         assert False, 'Unrecognized architecture specified for embedding network!'

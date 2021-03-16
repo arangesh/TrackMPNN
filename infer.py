@@ -7,6 +7,7 @@ import torch.optim as optim
 from models.track_mpnn import TrackMPNN
 from dataset.kitti_mot import KittiMOTDataset, store_kitti_results
 from dataset.bdd100k_mot import BDD100kMOTDataset, store_bdd100k_results
+from dataset.mot20 import MOT20Dataset, store_mot20_results
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.infer_options import args
 
@@ -21,6 +22,9 @@ if args.dataset == 'kitti':
         args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
 elif args.dataset == 'bdd100k':
     infer_loader = DataLoader(BDD100kMOTDataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
+elif args.dataset == 'mot20':
+    infer_loader = DataLoader(MOT20Dataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
         args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
 
 
@@ -94,6 +98,8 @@ def infer(model):
             store_kitti_results(bbox_pred, y_out, infer_loader.dataset.class_dict, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
         elif args.dataset == 'bdd100k':
             store_bdd100k_results(bbox_pred, y_out, infer_loader.dataset.class_dict, os.path.join(args.output_dir, '%.4d.json' % (b_idx,)))
+        elif args.dataset == 'mot20':
+            store_mot20_results(bbox_pred, y_out, infer_loader.dataset.class_dict, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
         print('Done with sequence {} out {}...\n'.format(b_idx + 1, len(infer_loader.dataset)))
 
     return
