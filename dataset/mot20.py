@@ -69,7 +69,7 @@ class MOT20Dataset(data.Dataset):
         print('Preparing ' + split + ' dataset...')
 
         self.split = split
-        self.class_dict = {'Pedestrian': 1}
+        self.class_dict = {'Pedestrian': 1, 'Cars': 2, 'Cyclist': 3}
         self.cats = list(self.class_dict.keys()) + ['DontCare']
         self.detections = detections
         self.feats = feats
@@ -101,7 +101,7 @@ class MOT20Dataset(data.Dataset):
          (
              [761.2714586708171, 338.2552534020628, 1522.5429173416342, 148.37698047169826], 
             [440.0030534259005, 254.63912432427475, 880.006106851801, 42.00678644807592]
-            )
+         )
         '''
         mean = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
@@ -161,7 +161,7 @@ class MOT20Dataset(data.Dataset):
         chunks = []
         if self.split == 'train':
             for i, seq in enumerate(seqs):
-                for st_fr in range(0, num_frames[i], int(self.cur_win_size / 2)):
+                for st_fr in range(1, num_frames[i]+1, int(self.cur_win_size / 2)):
                     fr_list = [fr for fr in range(st_fr, min(st_fr + self.cur_win_size, num_frames[i]))]
                     skip_fr = random.randint(st_fr + self.cur_win_size, st_fr + self.cur_win_size + self.ret_win_size)
                     if skip_fr < num_frames[i] - 1:
@@ -169,7 +169,7 @@ class MOT20Dataset(data.Dataset):
                     chunks.append([seq, fr_list])
         else:
             for i, seq in enumerate(seqs):
-                chunks.append([seq, [fr for fr in range(0, num_frames[i])]])
+                chunks.append([seq, [fr for fr in range(1, num_frames[i]+1)]])
 
         return chunks
 
