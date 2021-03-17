@@ -147,18 +147,15 @@ class KittiMOTDataset(data.Dataset):
 
     def get_tracking_chunks(self):
         seqs = sorted(os.listdir(self.im_path))
-        # seqs 13, 16 and 17 have very few or no cars at all
         if self.split == 'train':
-            seqs = seqs[0:16] + [seqs[17], seqs[19]]
-            #seqs = seqs[:11]
+            seqs = seqs[0:3]
             print(seqs)
         elif self.split == 'val':
-            seqs = [seqs[16], seqs[18], seqs[20]]
-            #seqs = seqs[11:]
+            seqs = [seqs[3]]
             print(seqs)
         else:
             pass
-        num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.png'))) for x in seqs]
+        num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.jpg'))) for x in seqs]
 
         # Load tracking chunks; each row is [seq_no, st_fr, ed_fr]
         chunks = []
