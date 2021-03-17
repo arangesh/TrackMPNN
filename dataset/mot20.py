@@ -60,8 +60,8 @@ def store_mot20_results(bbox_pred, y_out, class_dict, output_path):
                         (t, htracks[i], bboxs[i, 0], bboxs[i, 1], bboxs[i, 2]-bboxs[i, 0], bboxs[i, 3]-bboxs[i, 1]))
 
 
-class KittiMOTDataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='centertrack', feats='2d+temp', embed_arch='espv2', cur_win_size=5, ret_win_size=10, snapshot=None, random_transforms=False, cuda=True):
+class MOT20Dataset(data.Dataset):
+    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='mot20_det', feats='2d+temp', embed_arch='espv2', cur_win_size=5, ret_win_size=10, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -85,7 +85,7 @@ class KittiMOTDataset(data.Dataset):
         if self.split == 'test':
             self.im_path = os.path.join(dataset_root_path, 'test', 'det')
             self.label_path = None
-            self.detections_path = os.path.join(dataset_root_path, 'test', self.detections + '_detections') 
+            self.detections_path = os.path.join(dataset_root_path, 'test', 'det') 
         else:
             self.im_path = os.path.join(dataset_root_path, 'train', 'det')
             self.label_path = os.path.join(dataset_root_path, 'train', 'label')
@@ -155,7 +155,7 @@ class KittiMOTDataset(data.Dataset):
             print(seqs)
         else:
             pass
-        num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.jpg'))) for x in seqs]
+        num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.txt'))) for x in seqs]
 
         # Load tracking chunks; each row is [seq_no, st_fr, ed_fr]
         chunks = []
@@ -173,7 +173,7 @@ class KittiMOTDataset(data.Dataset):
 
         return chunks
 
-    def load_kitti_labels(self, seq, fr, im_shape, random_transforms_hf):
+    def load_kitti_labels(self, seq, fr, random_transforms_hf):
         """
         Values    Name      Description
         ----------------------------------------------------------------------------
@@ -207,7 +207,7 @@ class KittiMOTDataset(data.Dataset):
         cat_ids = {cat: i + 1 for i, cat in enumerate(cats)}
         label_file = open(os.path.join(self.label_path, seq + '.txt'), 'r')
         for line in label_file:
-            tmp = line[:-1].split(' ')
+            tmp = line[:-1].split(',')
             if int(tmp[0]) < fr:
                 continue
             elif int(tmp[0]) > fr:
@@ -224,11 +224,15 @@ class KittiMOTDataset(data.Dataset):
                     'occluded': int(tmp[4]),
                     'location': [float(tmp[13]), float(tmp[14]), float(tmp[15])],
                     'rotation_y': float(tmp[16])}
+            
+            height = float(tmp[18])
+            width = float(tmp[19])
+            
             if random_transforms_hf:
                 # transform GT bboxes to account for horizontal flip
                 ann['alpha'] = -ann['alpha'] # alpha
-                ann['bbox'] = [im_shape[1]-ann['bbox'][2]-1, ann['bbox'][1], 
-                               im_shape[1]-ann['bbox'][0]-1, ann['bbox'][3]] # x1 and x2
+                ann['bbox'] = [width-ann['bbox'][2]-1, ann['bbox'][1], 
+                               width-ann['bbox'][0]-1, ann['bbox'][3]] # x1 and x2
                 ann['location'] = [-ann['location'][0], ann['location'][1], ann['location'][2]] # X
                 if ann['rotation_y'] >= -np.pi and ann['rotation_y'] <= -np.pi/2:
                     ann['rotation_y'] = np.pi/2 + ann['rotation_y']
@@ -250,7 +254,7 @@ class KittiMOTDataset(data.Dataset):
             bbox_gt = np.concatenate((bbox_gt, np.array([b], dtype=np.float32)), axis=0)
         return annotations, bbox_gt
 
-    def load_detections(self, seq, fr, im_shape, random_transforms_hf):
+    def load_detections(self, seq, fr, random_transforms_hf):
         """
         Values    Name      Description
         ----------------------------------------------------------------------------
@@ -281,23 +285,26 @@ class KittiMOTDataset(data.Dataset):
         cats = ['Pedestrian', 'Car', 'Cyclist', 'Van', 'Truck',  'Person',
         'Tram', 'Misc', 'DontCare']
         cat_ids = {cat: i + 1 for i, cat in enumerate(cats)}
-        det_file = open(os.path.join(self.detections_path, seq, '%.4d.txt' % (fr,)), 'r')
+        det_file = open(os.path.join(self.detections_path, seq, '%d.txt' % (fr,)), 'r')
         for line in det_file:
             tmp = line[:-1].split(',')
 
             ann = { 'frame': fr,
-                    'category_id': cat_ids[tmp[0]],
+                    'category_id': 1, #TODO hardcoded cat
                     'bbox': [float(tmp[1]), float(tmp[2]), float(tmp[3]), float(tmp[4])],
                     'score': float(tmp[5])}
+            
+            width = float(tmp[7])
+            
             if random_transforms_hf:
                 # transform GT bboxes to account for horizontal flip
-                ann['bbox'] = [im_shape[1]-ann['bbox'][2]-1, ann['bbox'][1], 
-                               im_shape[1]-ann['bbox'][0]-1, ann['bbox'][3]] # x1 and x2
+                ann['bbox'] = [width-ann['bbox'][2]-1, ann['bbox'][1], 
+                               width-ann['bbox'][0]-1, ann['bbox'][3]] # x1 and x2
 
-            if tmp[0] not in self.cats:
-                continue
-            if tmp[0] == "Van": # remove boxes related to Van from predictions, we only need it in GT
-                continue
+            # if tmp[0] not in self.cats:
+            #     continue
+            # if tmp[0] == "Van": # remove boxes related to Van from predictions, we only need it in GT
+            #     continue
 
             # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
             b = [ann['frame'], -1, ann['category_id']] \
@@ -340,7 +347,7 @@ class KittiMOTDataset(data.Dataset):
             c_x = (bbox[0] + bbox[2]) / 2.0
             c_y = (bbox[1] + bbox[3]) / 2.0
             # account for image resizing
-            c_x = (c_x * self.input_w) / im_shape[1]
+            c_x = (c_x * self.input_w) / width
             c_y = (c_y * self.input_h) / im_shape[0]
             # divide the center by downsampling ratio of the model
             c_x = int(c_x / self.down_ratio)
@@ -447,18 +454,18 @@ class KittiMOTDataset(data.Dataset):
 
         for fr in input_info[1]:
             # load image
-            im = PIL.Image.open(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
-            # apply horizontal flip to image
-            if random_transforms_hf:
-                im = im.transpose(PIL.Image.FLIP_LEFT_RIGHT)
+            # im = PIL.Image.open(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
+            # # apply horizontal flip to image
+            # if random_transforms_hf:
+            #     im = im.transpose(PIL.Image.FLIP_LEFT_RIGHT)
             
             # load GT annotations
             # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
-            annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], fr, (im.size[1], im.size[0]), random_transforms_hf)
+            annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], fr, random_transforms_hf)
 
             # load detections
             # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
-            bbox_pred_fr = self.load_detections(input_info[0], fr, (im.size[1], im.size[0]), random_transforms_hf)
+            bbox_pred_fr = self.load_detections(input_info[0], fr, random_transforms_hf)
 
             # apply time reversal transform
             if random_transforms_tr:
