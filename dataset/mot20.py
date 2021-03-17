@@ -89,7 +89,7 @@ class KittiMOTDataset(data.Dataset):
         else:
             self.im_path = os.path.join(dataset_root_path, 'train', 'det')
             self.label_path = os.path.join(dataset_root_path, 'train', 'label')
-            self.detections_path = os.path.join(dataset_root_path, 'training', self.detections + '_detections')
+            self.detections_path = self.im_path #os.path.join(dataset_root_path, 'train', self.detections + '_detections')
 
         # initialize detector with necessary heads and pretrained weights
         
@@ -97,28 +97,28 @@ class KittiMOTDataset(data.Dataset):
         # get tracking batch information 
         self.chunks = self.get_tracking_chunks()
         # load mean values for each feature
+        '''
+         (
+             [761.2714586708171, 338.2552534020628, 1522.5429173416342, 148.37698047169826], 
+            [440.0030534259005, 254.63912432427475, 880.006106851801, 42.00678644807592]
+            )
+        '''
         mean = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
-            if self.detections == 'centertrack':
-                mean = mean + [0.78] + [544.57, 171.58, 71.54, 61.50] # 2d features
-            elif self.detections == 'rrc':
-                mean = mean + [0.91] + [577.11, 178.39, 102.48, 58.36] # 2d features
+            mean = mean + [0.0] + [761.2714586708171, 338.2552534020628, 1522.5429173416342, 148.37698047169826]
+        
         if 'temp' in self.feats:
             mean = mean + [0.0 for _ in range(2*1)] # temporal features
-        if 'vis' in self.feats:
-            mean = mean + [0.5 for _ in range(self.num_vis_feats)] # visual features
+        
         self.mean = self._convert_to_tensor([mean])
+        
         # load std values for each feature
         std = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
-            if self.detections == 'centertrack':
-                std = std + [0.14] + [285.65, 13.94, 69.92, 47.39] # 2d features
-            elif self.detections == 'rrc':
-                std = std + [0.21] + [301.75, 11.55, 78.83, 44.66] # 2d features
+            std = std + [1.0] + [440.0030534259005, 254.63912432427475, 880.006106851801, 42.00678644807592]
         if 'temp' in self.feats:
             std = std + [1.0 for _ in range(2*1)] # temporal features
-        if 'vis' in self.feats:
-            std = std + [0.5 for _ in range(self.num_vis_feats)] # visual features
+        
         self.std = self._convert_to_tensor([std])
 
         print('Finished preparing ' + self.split + ' dataset!')
