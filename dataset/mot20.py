@@ -147,11 +147,14 @@ class MOT20Dataset(data.Dataset):
 
     def get_tracking_chunks(self):
         seqs = sorted(os.listdir(self.im_path))
+        num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.txt'))) for x in seqs]
+
+        print(f"num frames in seq: {seqs} is {num_frames}")
         if self.split == 'train':
-            seqs = seqs[0:3]
+            seqs = [seqs[2]]
             print(seqs)
         elif self.split == 'val':
-            seqs = [seqs[3]]
+            seqs = [seqs[0]]
             print(seqs)
         else:
             pass

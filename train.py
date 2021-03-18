@@ -181,6 +181,7 @@ def train(model, epoch):
 
 # validation function
 def val(model, epoch):
+    torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
     global best_mota
     epoch_f1 = list()
     accs = []
