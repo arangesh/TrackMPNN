@@ -98,6 +98,12 @@ class MOT20Dataset(data.Dataset):
         self.chunks = self.get_tracking_chunks()
         # load mean values for each feature
         '''
+        MOT15
+        (
+            [694.0403807597513, 217.51022969352766, 1388.0807615195026, 154.15865548649808], 
+            [473.0236095771503, 126.76001102472051, 946.0472191543006, 124.36223687694451]
+        )
+        MOT20
          (
              [761.2714586708171, 338.2552534020628, 1522.5429173416342, 148.37698047169826], 
             [440.0030534259005, 254.63912432427475, 880.006106851801, 42.00678644807592]
@@ -105,7 +111,7 @@ class MOT20Dataset(data.Dataset):
         '''
         mean = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
-            mean = mean + [0.0] + [761.2714586708171, 338.2552534020628, 1522.5429173416342, 148.37698047169826]
+            mean = mean + [0.0] + [694.0403807597513, 217.51022969352766, 1388.0807615195026, 154.15865548649808]
         
         if 'temp' in self.feats:
             mean = mean + [0.0 for _ in range(2*1)] # temporal features
@@ -115,7 +121,7 @@ class MOT20Dataset(data.Dataset):
         # load std values for each feature
         std = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
-            std = std + [1.0] + [440.0030534259005, 254.63912432427475, 880.006106851801, 42.00678644807592]
+            std = std + [1.0] + [473.0236095771503, 126.76001102472051, 946.0472191543006, 124.36223687694451]
         if 'temp' in self.feats:
             std = std + [1.0 for _ in range(2*1)] # temporal features
         
