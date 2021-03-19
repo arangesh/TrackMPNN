@@ -151,10 +151,10 @@ class MOT20Dataset(data.Dataset):
 
         print(f"num frames in seq: {seqs} is {num_frames}")
         if self.split == 'train':
-            seqs = [seqs[2]]
+            seqs = seqs[0:4] + seqs[5:7] + [seqs[9]]
             print(seqs)
         elif self.split == 'val':
-            seqs = [seqs[0]]
+            seqs = [seqs[4], seqs[7],  seqs[8], seqs[10]]
             print(seqs)
         else:
             pass
@@ -462,14 +462,17 @@ class MOT20Dataset(data.Dataset):
             # if random_transforms_hf:
             #     im = im.transpose(PIL.Image.FLIP_LEFT_RIGHT)
             
-            # load GT annotations
-            # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
-            annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], fr, random_transforms_hf)
+            try:
+                # load GT annotations
+                # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
+                annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], fr, random_transforms_hf)
 
-            # load detections
-            # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
-            bbox_pred_fr = self.load_detections(input_info[0], fr, random_transforms_hf)
-
+                # load detections
+                # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
+                bbox_pred_fr = self.load_detections(input_info[0], fr, random_transforms_hf)
+            except:
+                continue
+            
             # apply time reversal transform
             if random_transforms_tr:
                 bbox_gt_fr[:, 0] = input_info[1][-1] - bbox_gt_fr[:, 0] + input_info[1][0]

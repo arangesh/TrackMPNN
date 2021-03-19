@@ -11,7 +11,8 @@ def test_loading_mot20_data(dataset_root_path):
     dataset = MOT20Dataset(dataset_root_path=dataset_root_path,
                               split='train', cat='Pedestrian', detections='mot20')
     
-
+    dataset = MOT20Dataset(dataset_root_path=dataset_root_path,
+                              split='val', cat='Pedestrian', detections='mot20')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
