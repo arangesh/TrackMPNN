@@ -152,7 +152,11 @@ class MOT20Dataset(data.Dataset):
         return random.random() < probability
 
     def get_tracking_chunks(self):
+        # sort_by_frame = lambda file: int(file.split("/")[-1].split('.txt')[0])
         seqs = sorted(os.listdir(self.im_path))
+        seq_frames = { x:glob.glob(os.path.join(self.im_path, x, '*.txt')) for x in seqs }
+        for frames in seq_frames.values():
+            frames.sort(key=lambda x: int(x.split('/')[-1].split('.txt')[0]))
         num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.txt'))) for x in seqs]
 
         print(f"num frames in seq: {seqs} is {num_frames}")
@@ -170,8 +174,13 @@ class MOT20Dataset(data.Dataset):
         chunks = []
         if self.split == 'train':
             for i, seq in enumerate(seqs):
-                for st_fr in range(1, num_frames[i]+1, int(self.cur_win_size / 2)):
-                    fr_list = [fr for fr in range(st_fr, min(st_fr + self.cur_win_size, num_frames[i]))]
+                #grab all the frames in the sequence, already sorted for time
+                frames = seq_frames[seq]
+
+                #each row should be [seq, [frames subset]]
+                for start_frame in range(0, len(frames), int(self.cur_win_size / 2)):
+                    #here we want to grab the frames so that they have a slight overlap
+                    frame_list = [fr for fr in range(start_frame, min(start_frame + self.cur_win_size, len(frames)))]
                     skip_fr = random.randint(st_fr + self.cur_win_size, st_fr + self.cur_win_size + self.ret_win_size)
                     if skip_fr < num_frames[i] - 1:
                         fr_list = fr_list + [skip_fr, skip_fr + 1]
