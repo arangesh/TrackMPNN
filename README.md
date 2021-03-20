@@ -20,7 +20,7 @@ pipenv install https://download.pytorch.org/whl/cu100/torch-1.2.0-cp36-cp36m-man
 5) Clone and make DCNv2 (note gcc-8 is highest supported version incase you're on ubuntu 20.04 +):
 ```shell
 cd models/dla
-git clone https://github.com/CharlesShang/DCNv2
+git clone git@github.com:mez/DCNv2.git
 cd DCNv2
 ./make.sh
 ```
