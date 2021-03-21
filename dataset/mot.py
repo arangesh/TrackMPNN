@@ -60,7 +60,7 @@ def store_mot20_results(bbox_pred, y_out, class_dict, output_path):
                         (t, htracks[i], bboxs[i, 0], bboxs[i, 1], bboxs[i, 2]-bboxs[i, 0], bboxs[i, 3]-bboxs[i, 1]))
 
 
-class MOT20Dataset(data.Dataset):
+class MOTDataset(data.Dataset):
     def __init__(self, dataset_root_path=None, split='train', cat='All', detections='mot20_det', feats='2d+temp', embed_arch='espv2', cur_win_size=5, ret_win_size=10, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
@@ -181,13 +181,15 @@ class MOT20Dataset(data.Dataset):
                 for start_frame in range(0, len(frames), int(self.cur_win_size / 2)):
                     #here we want to grab the frames so that they have a slight overlap
                     frame_list = [fr for fr in range(start_frame, min(start_frame + self.cur_win_size, len(frames)))]
-                    skip_fr = random.randint(st_fr + self.cur_win_size, st_fr + self.cur_win_size + self.ret_win_size)
-                    if skip_fr < num_frames[i] - 1:
-                        fr_list = fr_list + [skip_fr, skip_fr + 1]
-                    chunks.append([seq, fr_list])
+                    skip_fr = random.randint(start_frame + self.cur_win_size, start_frame + self.cur_win_size + self.ret_win_size)
+                    if skip_fr < len(frames) - 1:
+                        frame_list = frame_list + [skip_fr, skip_fr + 1]
+                    chunks.append([seq, [ frames[x] for x in frame_list]])
         else:
             for i, seq in enumerate(seqs):
-                chunks.append([seq, [fr for fr in range(1, num_frames[i]+1)]])
+                #grab all the frames in the sequence, already sorted for time
+                frames = seq_frames[seq]
+                chunks.append([seq, frames])
 
         return chunks
 
