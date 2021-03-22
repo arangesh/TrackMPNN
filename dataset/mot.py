@@ -92,7 +92,6 @@ class MOTDataset(data.Dataset):
             self.detections_path = self.im_path #os.path.join(dataset_root_path, 'train', self.detections + '_detections')
 
         # initialize detector with necessary heads and pretrained weights
-        
 
         # get tracking batch information 
         self.chunks = self.get_tracking_chunks()
@@ -133,6 +132,12 @@ class MOTDataset(data.Dataset):
         """Denotes the total number of samples"""
         return len(self.chunks)
 
+    def _get_frame_number_from_filepath(self, filepath):
+        '''
+        filepath: assume a file that ends with .txt and is a number
+        '''
+        return int(filepath.split('/')[-1].split('.txt')[0])
+
     def _convert_to_tensor(self, var):
         """
         Handles conversion of ndarrays/datatypes to cuda/normal tensors
@@ -152,7 +157,6 @@ class MOTDataset(data.Dataset):
         return random.random() < probability
 
     def get_tracking_chunks(self):
-        # sort_by_frame = lambda file: int(file.split("/")[-1].split('.txt')[0])
         seqs = sorted(os.listdir(self.im_path))
         seq_frames = { x:glob.glob(os.path.join(self.im_path, x, '*.txt')) for x in seqs }
         for frames in seq_frames.values():
@@ -193,7 +197,7 @@ class MOTDataset(data.Dataset):
 
         return chunks
 
-    def load_kitti_labels(self, seq, fr, random_transforms_hf):
+    def load_kitti_labels(self, seq, frame_path, random_transforms_hf):
         """
         Values    Name      Description
         ----------------------------------------------------------------------------
@@ -217,6 +221,9 @@ class MOTDataset(data.Dataset):
            1    score        Only for results: Float, indicating confidence in
                              detection, needed for p/r curves, higher is better.
         """
+
+        fr = self._get_frame_number_from_filepath(frame_path)
+
         annotations = []
         bbox_gt = np.zeros((0, 16), dtype=np.float32)
         if self.label_path is None:
@@ -274,7 +281,7 @@ class MOTDataset(data.Dataset):
             bbox_gt = np.concatenate((bbox_gt, np.array([b], dtype=np.float32)), axis=0)
         return annotations, bbox_gt
 
-    def load_detections(self, seq, fr, random_transforms_hf):
+    def load_detections(self, seq, frame_path, random_transforms_hf):
         """
         Values    Name      Description
         ----------------------------------------------------------------------------
@@ -298,6 +305,8 @@ class MOTDataset(data.Dataset):
            1    score        Only for results: Float, indicating confidence in
                              detection, needed for p/r curves, higher is better.
         """
+        fr = self._get_frame_number_from_filepath(frame_path)
+
         bbox_pred = np.zeros((0, 16), dtype=np.float32)
         if self.detections_path is None:
             return bbox_pred
@@ -472,23 +481,22 @@ class MOTDataset(data.Dataset):
         if self.split == 'train' and 'vis' in self.feats:
             self.optimizer.zero_grad()
 
-        for fr in input_info[1]:
+        for frame_path in input_info[1]:
             # load image
             # im = PIL.Image.open(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
             # # apply horizontal flip to image
             # if random_transforms_hf:
             #     im = im.transpose(PIL.Image.FLIP_LEFT_RIGHT)
             
-            try:
-                # load GT annotations
-                # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
-                annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], fr, random_transforms_hf)
+        
+            # load GT annotations
+            # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
+            annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], frame_path, random_transforms_hf)
 
-                # load detections
-                # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
-                bbox_pred_fr = self.load_detections(input_info[0], fr, random_transforms_hf)
-            except:
-                continue
+            # load detections
+            # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
+            bbox_pred_fr = self.load_detections(input_info[0], frame_path, random_transforms_hf)
+        
             
             # apply time reversal transform
             if random_transforms_tr:

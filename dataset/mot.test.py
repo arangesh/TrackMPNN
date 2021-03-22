@@ -11,15 +11,15 @@ from dataset.mot import MOTDataset
 kwargs_train = {'batch_size': 1, 'shuffle': True}
 
 def test_loading_mot20_data(dataset_root_path):
-    dataset = DataLoader(MOTDataset(dataset_root_path=dataset_root_path,
-                              split='train', cat='Pedestrian', detections='mot20'), **kwargs_train)
+    dataset = MOTDataset(dataset_root_path=dataset_root_path,
+                        split='train', cat='Pedestrian', detections='mot20')
 
     train_loader = DataLoader(dataset, **kwargs_train)
 
-    dataset = DataLoader(MOTDataset(dataset_root_path=dataset_root_path,
-                              split='test', cat='Pedestrian', detections='mot20'), **kwargs_train)
+    # dataset = DataLoader(MOTDataset(dataset_root_path=dataset_root_path,
+    #                           split='test', cat='Pedestrian', detections='mot20'), **kwargs_train)
         
-
+    print( len(dataset))
     for b_idx, (X_seq, bbox_pred, _, loss_d) in enumerate(train_loader):
         print(X_seq)
 
