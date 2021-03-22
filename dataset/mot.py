@@ -500,8 +500,11 @@ class MOTDataset(data.Dataset):
             
             # apply time reversal transform
             if random_transforms_tr:
-                bbox_gt_fr[:, 0] = input_info[1][-1] - bbox_gt_fr[:, 0] + input_info[1][0]
-                bbox_pred_fr[:, 0] = input_info[1][-1] - bbox_pred_fr[:, 0] + input_info[1][0]
+                max_frame_number = self._get_frame_number_from_filepath(input_info[1][-1])
+                min_frame_number = self._get_frame_number_from_filepath(input_info[1][0])
+
+                bbox_gt_fr[:, 0] = max_frame_number - bbox_gt_fr[:, 0] + min_frame_number
+                bbox_pred_fr[:, 0] = max_frame_number - bbox_pred_fr[:, 0] + min_frame_number
 
             # assign GT track ids to each predicted bbox
             bbox_pred_fr, bbox_gt_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
