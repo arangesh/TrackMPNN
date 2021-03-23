@@ -32,6 +32,18 @@ def store_kitti_results(bbox_pred, y_out, class_dict, output_path):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
+    # remove low-probability tracks
+    trks = np.unique(y_out[:, 1])
+    for trk in trks:
+        if trk < 0:
+            continue
+        id_trk = np.where(y_out[:, 1] == trk)[0]
+        if id_trk.size == 0:
+            continue
+        if class_dict[int(np.amax(bbox_pred[id_trk, 0]))] == 'Car':
+            if np.amax(bbox_pred[id_trk, 13]) < 0.7:
+                y_out[id_trk, 1] = -1
+
     times = np.sort(y_out[:, 0])
     t_st = times[0]
     t_ed = times[-1]
