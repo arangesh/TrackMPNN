@@ -22,7 +22,7 @@ parser.add_argument('--no-tp-classifier', action='store_true', default=False, he
 parser.add_argument('--num-hidden-feats', type=int, default=64, help='number of hidden layer nodes')
 parser.add_argument('--num-att-heads', type=int, default=0, help='number of attention heads')
 parser.add_argument('--msg-type', type=str, default='diff', help='type of message passing operation: diff/concat')
-parser.add_argument('--epochs', type=int, default=100, help='number of epochs to train for')
+parser.add_argument('--epochs', type=int, default=50, help='number of epochs to train for')
 parser.add_argument('--learning-rate', type=float, default=0.0001, help='learning rate')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum for gradient step')
 parser.add_argument('--weight-decay', type=float, default=0.0005, help='weight decay')
