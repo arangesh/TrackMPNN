@@ -21,6 +21,7 @@ class GraphAttentionLayer(nn.Module): # adapted from https://github.com/Diego999
         nn.init.xavier_uniform_(self.a.data, gain=1.414)
 
         self.leakyrelu = nn.LeakyReLU(self.alpha)
+        self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, h, node_adj, edge_adj):
         h_att = torch.mm(h, self.W_att) # (N, F)
@@ -33,6 +34,7 @@ class GraphAttentionLayer(nn.Module): # adapted from https://github.com/Diego999
 
         attention = torch.where(edge_adj != 0, e, torch.tensor(-9e15).to(e.device)) # (N, N)
         attention = F.softmax(attention, dim=1) # (N, N)
+        attention = self.dropout(attention)
         h_prime = sp.mm((attention * edge_adj).to_sparse(), h) # (N, F)
 
         if self.concat:
