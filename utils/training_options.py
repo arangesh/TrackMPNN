@@ -51,7 +51,7 @@ elif args.dataset == 'bdd100k':
     if args.embed_arch not in ['espv2', 'dla34']:
         assert False, 'Unrecognized architecture specified for embedding network!'
 elif args.dataset == 'mot20':
-    if args.category not in ['pedestrian', 'All']:
+    if args.category not in ['Pedestrian', 'All']:
         assert False, 'Unrecognized object category!'
     if args.detections not in ['det']:
         assert False, 'Unrecognized detections!'

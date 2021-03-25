@@ -7,7 +7,7 @@ import torch.optim as optim
 from models.track_mpnn import TrackMPNN
 from dataset.kitti_mot import KittiMOTDataset, store_kitti_results
 from dataset.bdd100k_mot import BDD100kMOTDataset, store_bdd100k_results
-from dataset.mot20 import MOT20Dataset, store_mot20_results
+from dataset.mot import MOTDataset, store_mot20_results
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.infer_options import args
 
@@ -24,7 +24,7 @@ elif args.dataset == 'bdd100k':
     infer_loader = DataLoader(BDD100kMOTDataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
         args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
 elif args.dataset == 'mot20':
-    infer_loader = DataLoader(MOT20Dataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
+    infer_loader = DataLoader(MOTDataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
         args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
 
 

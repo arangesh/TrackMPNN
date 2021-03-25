@@ -60,8 +60,8 @@ def store_mot20_results(bbox_pred, y_out, class_dict, output_path):
                         (t, htracks[i], bboxs[i, 0], bboxs[i, 1], bboxs[i, 2]-bboxs[i, 0], bboxs[i, 3]-bboxs[i, 1]))
 
 
-class MOT20Dataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='mot20_det', feats='2d+temp', embed_arch='espv2', cur_win_size=5, ret_win_size=10, snapshot=None, random_transforms=False, cuda=True):
+class MOTDataset(data.Dataset):
+    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='mot20_det', feats='2d+temp', embed_arch='espv2', cur_win_size=5, ret_win_size=0, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -83,13 +83,11 @@ class MOT20Dataset(data.Dataset):
         self.fr_range = 30
 
         if self.split == 'test':
-            self.im_path = os.path.join(dataset_root_path, 'test', 'det')
-            self.label_path = None
+            self.data_path = os.path.join(dataset_root_path, 'test')
             self.detections_path = os.path.join(dataset_root_path, 'test', 'det') 
         else:
-            self.im_path = os.path.join(dataset_root_path, 'train', 'det')
-            self.label_path = os.path.join(dataset_root_path, 'train', 'label')
-            self.detections_path = self.im_path #os.path.join(dataset_root_path, 'train', self.detections + '_detections')
+            self.data_path = os.path.join(dataset_root_path, 'train')
+            self.detections_path = os.path.join(dataset_root_path, 'train', 'det') 
 
         # initialize detector with necessary heads and pretrained weights
         
@@ -145,32 +143,16 @@ class MOT20Dataset(data.Dataset):
             var = var.cuda()
         return var
 
-    def _decision(self, probability):
-        """
-        Function that returns True with probability
-        """
-        return random.random() < probability
-
     def get_tracking_chunks(self):
-        seqs = sorted(os.listdir(self.im_path))
-        num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.txt'))) for x in seqs]
-
-        print(f"num frames in seq: {seqs} is {num_frames}")
-        if self.split == 'train':
-            seqs = seqs[0:4] + seqs[5:7] + [seqs[9]]
-            print(seqs)
-        elif self.split == 'val':
-            seqs = [seqs[4], seqs[7],  seqs[8], seqs[10]]
-            print(seqs)
-        else:
-            pass
-        num_frames = [len(glob.glob(os.path.join(self.im_path, x, '*.txt'))) for x in seqs]
+        seqs = sorted(os.listdir(os.path.join(self.data_path)))
+        seqs.remove('det')
+        num_frames = [len(glob.glob(os.path.join(self.data_path, x, 'img1', '*.jpg'))) for x in seqs]
 
         # Load tracking chunks; each row is [seq_no, st_fr, ed_fr]
         chunks = []
         if self.split == 'train':
             for i, seq in enumerate(seqs):
-                for st_fr in range(1, num_frames[i]+1, int(self.cur_win_size / 2)):
+                for st_fr in range(1, num_frames[i]+1, int(self.cur_win_size)):
                     fr_list = [fr for fr in range(st_fr, min(st_fr + self.cur_win_size, num_frames[i]))]
                     skip_fr = random.randint(st_fr + self.cur_win_size, st_fr + self.cur_win_size + self.ret_win_size)
                     if skip_fr < num_frames[i] - 1:
@@ -181,6 +163,12 @@ class MOT20Dataset(data.Dataset):
                 chunks.append([seq, [fr for fr in range(1, num_frames[i]+1)]])
 
         return chunks
+    
+    def _decision(self, probability):
+        """
+        Function that returns True with probability
+        """
+        return random.random() < probability
 
     def load_kitti_labels(self, seq, fr, random_transforms_hf):
         """
@@ -208,18 +196,19 @@ class MOT20Dataset(data.Dataset):
         """
         annotations = []
         bbox_gt = np.zeros((0, 16), dtype=np.float32)
-        if self.label_path is None:
+        if self.split == 'test':
             return annotations, bbox_gt
 
         cats = ['Pedestrian', 'Car', 'Cyclist', 'Van', 'Truck',  'Person',
         'Tram', 'Misc', 'DontCare']
         cat_ids = {cat: i + 1 for i, cat in enumerate(cats)}
-        label_file = open(os.path.join(self.label_path, seq + '.txt'), 'r')
+        label_file = open(os.path.join(self.data_path, 'label', seq.lower()+'.txt'), 'r')
         for line in label_file:
             tmp = line[:-1].split(',')
-            if int(tmp[0]) < fr:
+            line_frame_number = int(tmp[0])
+            if line_frame_number < fr:
                 continue
-            elif int(tmp[0]) > fr:
+            elif line_frame_number > fr:
                 break
 
             ann = { 'frame': fr,
@@ -294,7 +283,10 @@ class MOT20Dataset(data.Dataset):
         cats = ['Pedestrian', 'Car', 'Cyclist', 'Van', 'Truck',  'Person',
         'Tram', 'Misc', 'DontCare']
         cat_ids = {cat: i + 1 for i, cat in enumerate(cats)}
-        det_file = open(os.path.join(self.detections_path, seq, '%d.txt' % (fr,)), 'r')
+        try:
+            det_file = open(os.path.join(self.detections_path, seq.lower(), '%d.txt' % (fr,)), 'r')
+        except:
+            return bbox_pred
         for line in det_file:
             tmp = line[:-1].split(',')
 
@@ -462,22 +454,14 @@ class MOT20Dataset(data.Dataset):
             self.optimizer.zero_grad()
 
         for fr in input_info[1]:
-            # load image
-            # im = PIL.Image.open(os.path.join(self.im_path, input_info[0], '%.6d.png' % (fr,)))
-            # # apply horizontal flip to image
-            # if random_transforms_hf:
-            #     im = im.transpose(PIL.Image.FLIP_LEFT_RIGHT)
-            
-            try:
-                # load GT annotations
-                # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
-                annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], fr, random_transforms_hf)
+            # load GT annotations
+            # [fr, trk_id, cat_id, alpha, x1, y1, x2, y2, h, w, l, x, y, z, rotation_y, score]
+            annotations, bbox_gt_fr = self.load_kitti_labels(input_info[0], fr, random_transforms_hf)
 
-                # load detections
-                # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
-                bbox_pred_fr = self.load_detections(input_info[0], fr, random_transforms_hf)
-            except:
-                continue
+            # load detections
+            # [fr, -1, cat_id, -10, x1, y1, x2, y2, -1, -1, -1, -1000, -1000, -1000, -10, score]
+            bbox_pred_fr = self.load_detections(input_info[0], fr, random_transforms_hf)
+
             
             # apply time reversal transform
             if random_transforms_tr:
@@ -494,6 +478,11 @@ class MOT20Dataset(data.Dataset):
 
             # get visual embeddings from bbox centers
             if 'vis' in self.feats:
+                # load image
+                im = PIL.Image.open(os.path.join(self.data_path, input_info[0], 'img1', '%.6d.jpg' % (fr,)))
+                # apply horizontal flip to image
+                if random_transforms_hf:
+                    im = im.transpose(PIL.Image.FLIP_LEFT_RIGHT)
                 # run forward pass through detector
                 outputs = self.get_embed_net_outputs(im)
                 vis_feats.append(self.get_vis_feats(outputs, 

@@ -13,7 +13,7 @@ from models.track_mpnn import TrackMPNN
 from models.loss import create_targets, FocalLoss, CELoss
 from dataset.kitti_mot import KittiMOTDataset
 from dataset.bdd100k_mot import BDD100kMOTDataset
-from dataset.mot20 import MOT20Dataset
+from dataset.mot import MOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics, compute_map
 from utils.training_options import args
@@ -33,9 +33,9 @@ elif args.dataset == 'bdd100k':
     val_loader = DataLoader(BDD100kMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
         args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
 elif args.dataset == 'mot20':
-    train_loader = DataLoader(MOT20Dataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
+    train_loader = DataLoader(MOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
         args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
-    val_loader = DataLoader(MOT20Dataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
+    val_loader = DataLoader(MOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
         args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
