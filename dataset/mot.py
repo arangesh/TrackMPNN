@@ -90,7 +90,6 @@ class MOTDataset(data.Dataset):
             self.detections_path = os.path.join(dataset_root_path, 'train', 'det') 
 
         # initialize detector with necessary heads and pretrained weights
-        
 
         # get tracking batch information 
         self.chunks = self.get_tracking_chunks()
@@ -131,6 +130,12 @@ class MOTDataset(data.Dataset):
         """Denotes the total number of samples"""
         return len(self.chunks)
 
+    def _get_frame_number_from_filepath(self, filepath):
+        '''
+        filepath: assume a file that ends with .txt and is a number
+        '''
+        return int(filepath.split('/')[-1].split('.txt')[0])
+
     def _convert_to_tensor(self, var):
         """
         Handles conversion of ndarrays/datatypes to cuda/normal tensors
@@ -160,7 +165,9 @@ class MOTDataset(data.Dataset):
                     chunks.append([seq, fr_list])
         else:
             for i, seq in enumerate(seqs):
-                chunks.append([seq, [fr for fr in range(1, num_frames[i]+1)]])
+                #grab all the frames in the sequence, already sorted for time
+                frames = seq_frames[seq]
+                chunks.append([seq, frames])
 
         return chunks
     
@@ -170,7 +177,7 @@ class MOTDataset(data.Dataset):
         """
         return random.random() < probability
 
-    def load_kitti_labels(self, seq, fr, random_transforms_hf):
+    def load_kitti_labels(self, seq, frame_path, random_transforms_hf):
         """
         Values    Name      Description
         ----------------------------------------------------------------------------
@@ -194,6 +201,9 @@ class MOTDataset(data.Dataset):
            1    score        Only for results: Float, indicating confidence in
                              detection, needed for p/r curves, higher is better.
         """
+
+        fr = self._get_frame_number_from_filepath(frame_path)
+
         annotations = []
         bbox_gt = np.zeros((0, 16), dtype=np.float32)
         if self.split == 'test':
@@ -252,7 +262,7 @@ class MOTDataset(data.Dataset):
             bbox_gt = np.concatenate((bbox_gt, np.array([b], dtype=np.float32)), axis=0)
         return annotations, bbox_gt
 
-    def load_detections(self, seq, fr, random_transforms_hf):
+    def load_detections(self, seq, frame_path, random_transforms_hf):
         """
         Values    Name      Description
         ----------------------------------------------------------------------------
@@ -276,6 +286,8 @@ class MOTDataset(data.Dataset):
            1    score        Only for results: Float, indicating confidence in
                              detection, needed for p/r curves, higher is better.
         """
+        fr = self._get_frame_number_from_filepath(frame_path)
+
         bbox_pred = np.zeros((0, 16), dtype=np.float32)
         if self.detections_path is None:
             return bbox_pred
@@ -465,8 +477,11 @@ class MOTDataset(data.Dataset):
             
             # apply time reversal transform
             if random_transforms_tr:
-                bbox_gt_fr[:, 0] = input_info[1][-1] - bbox_gt_fr[:, 0] + input_info[1][0]
-                bbox_pred_fr[:, 0] = input_info[1][-1] - bbox_pred_fr[:, 0] + input_info[1][0]
+                max_frame_number = self._get_frame_number_from_filepath(input_info[1][-1])
+                min_frame_number = self._get_frame_number_from_filepath(input_info[1][0])
+
+                bbox_gt_fr[:, 0] = max_frame_number - bbox_gt_fr[:, 0] + min_frame_number
+                bbox_pred_fr[:, 0] = max_frame_number - bbox_pred_fr[:, 0] + min_frame_number
 
             # assign GT track ids to each predicted bbox
             bbox_pred_fr, bbox_gt_fr = self.get_track_ids(bbox_pred_fr, bbox_gt_fr)
