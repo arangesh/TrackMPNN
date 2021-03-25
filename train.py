@@ -34,7 +34,7 @@ elif args.dataset == 'bdd100k':
         args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
 elif args.dataset == 'mot20':
     train_loader = DataLoader(MOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
-        args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)    
     val_loader = DataLoader(MOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
         args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
 

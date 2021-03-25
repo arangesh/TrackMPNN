@@ -61,7 +61,7 @@ def store_mot20_results(bbox_pred, y_out, class_dict, output_path):
 
 
 class MOTDataset(data.Dataset):
-    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='mot20_det', feats='2d+temp', embed_arch='espv2', cur_win_size=5, ret_win_size=0, snapshot=None, random_transforms=False, cuda=True):
+    def __init__(self, dataset_root_path=None, split='train', cat='All', detections='mot20_det', feats='2d', embed_arch='espv2', cur_win_size=5, ret_win_size=0, snapshot=None, random_transforms=False, cuda=True):
         """Initialization"""
 
         if dataset_root_path is None:
@@ -98,8 +98,8 @@ class MOTDataset(data.Dataset):
         '''
         MOT15
         (
-            [694.0403807597513, 217.51022969352766, 1388.0807615195026, 154.15865548649808], 
-            [473.0236095771503, 126.76001102472051, 946.0472191543006, 124.36223687694451]
+            ([694.0403807597513, 371.6688851800257, 1388.0807615195026, 154.15865548649808], 
+            [473.0236095771503, 155.64205319627575, 946.0472191543006, 124.36223687694446])
         )
         MOT20
          (
@@ -109,7 +109,7 @@ class MOTDataset(data.Dataset):
         '''
         mean = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
-            mean = mean + [0.0] + [694.0403807597513, 217.51022969352766, 1388.0807615195026, 154.15865548649808]
+            mean = mean + [0.0] + [694.0403807597513, 371.6688851800257, 1388.0807615195026, 154.15865548649808]
         
         if 'temp' in self.feats:
             mean = mean + [0.0 for _ in range(2*1)] # temporal features
@@ -119,7 +119,7 @@ class MOTDataset(data.Dataset):
         # load std values for each feature
         std = [0.5 for _ in range(len(self.class_dict))] # one-hot category IDs
         if '2d' in self.feats:
-            std = std + [1.0] + [473.0236095771503, 126.76001102472051, 946.0472191543006, 124.36223687694451]
+            std = std + [1.0] + [473.0236095771503, 155.64205319627575, 946.0472191543006, 124.36223687694446]
         if 'temp' in self.feats:
             std = std + [1.0 for _ in range(2*1)] # temporal features
         
