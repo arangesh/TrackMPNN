@@ -17,7 +17,7 @@ def test_loading_mot20_data(dataset_root_path):
     train_loader = DataLoader(dataset, **kwargs_train)
 
     dataset = DataLoader(MOTDataset(dataset_root_path=dataset_root_path,
-                              split='test', cat='Pedestrian', detections='mot20'), **kwargs_train)
+                              split='val', cat='Pedestrian', detections='mot20'), **kwargs_train)
         
 
     for b_idx, (X_seq, bbox_pred, _, loss_d) in enumerate(train_loader):

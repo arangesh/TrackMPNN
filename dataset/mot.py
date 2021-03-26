@@ -148,6 +148,15 @@ class MOTDataset(data.Dataset):
         seqs.remove('det')
         num_frames = [len(glob.glob(os.path.join(self.data_path, x, 'img1', '*.jpg'))) for x in seqs]
 
+        if self.split == 'train':
+            seqs = seqs[0:4] + seqs[5:7] + [seqs[9]]
+            print(seqs)
+        elif self.split == 'val':
+            seqs = [seqs[4], seqs[7],  seqs[8], seqs[10]]
+            print(seqs)
+        else:
+            pass
+        
         # Load tracking chunks; each row is [seq_no, st_fr, ed_fr]
         chunks = []
         if self.split == 'train':
