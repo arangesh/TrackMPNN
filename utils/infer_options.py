@@ -13,6 +13,16 @@ parser.add_argument('--snapshot', type=str, help='use a pre-trained model snapsh
 parser.add_argument('--hungarian', action='store_true', default=False, help='decode tracks using frame-by-frame Hungarian algorithm')
 parser.add_argument('--seed', type=int, default=5, help='set seed to some constant value to reproduce experiments')
 parser.add_argument('--no-cuda', action='store_true', default=False, help='do not use cuda for training')
+parser.add_argument('--feats', type=str, default='2d', help='features used for tracking: any combination of 2d, temp and vis')
+parser.add_argument('--dataset', type=str, default='kitti', help='dataset to train on: kitti/bdd100k/mot20')
+parser.add_argument('--category', type=str, default='All', help='category to train model for')
+parser.add_argument('--detections', type=str, default='det', help='detections to use')
+parser.add_argument('--embed-arch', type=str, default='espv2', help='architecture to use for the visual embedding network: espv2/dla34')
+parser.add_argument('--cur-win-size', type=int, default=5, help='number of timesteps in curring processing window')
+parser.add_argument('--ret-win-size', type=int, default=0, help='number of timesteps in the past to be retained for association')
+parser.add_argument('--num-hidden-feats', type=int, default=64, help='number of hidden layer nodes')
+parser.add_argument('--num-att-heads', type=int, default=0, help='number of attention heads')
+parser.add_argument('--msg-type', type=str, default='diff', help='type of message passing operation: diff/concat')
 
 
 args = parser.parse_args()
