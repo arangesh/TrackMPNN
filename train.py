@@ -12,6 +12,7 @@ import torch.optim as optim
 from models.track_mpnn import TrackMPNN
 from models.loss import create_targets, FocalLoss, CELoss
 from dataset.kitti_mot import KittiMOTDataset
+from dataset.bdd100k_mot import BDD100kMOTDataset
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.metrics import create_mot_accumulator, calc_mot_metrics, compute_map
 from utils.training_options import args
@@ -19,11 +20,17 @@ from utils.gradients import plot_grad_flow
 
 
 kwargs_train = {'batch_size': 1, 'shuffle': True}
-train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
-    args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
 kwargs_val = {'batch_size': 1, 'shuffle': False}
-val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
-    args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
+if args.dataset == 'kitti':
+    train_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
+    val_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
+elif args.dataset == 'bdd100k':
+    train_loader = DataLoader(BDD100kMOTDataset(args.dataset_root_path, 'train', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, args.random_transforms, args.cuda), **kwargs_train)
+    val_loader = DataLoader(BDD100kMOTDataset(args.dataset_root_path, 'val', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, None, False, args.cuda), **kwargs_val)
 
 # global var to store best MOTA across all epochs
 best_mota = -float('Inf')
@@ -145,6 +152,7 @@ def train(model, epoch):
                 epoch, (b_idx + 1), len(train_loader.dataset),
                 100. * (b_idx + 1) / len(train_loader.dataset), loss.item()))
 
+    scheduler.step()
     # now that the epoch is completed calculate statistics and store logs
     avg_loss_d = statistics.mean(epoch_loss_d)
     avg_loss_c = statistics.mean(epoch_loss_c)
@@ -179,7 +187,7 @@ def val(model, epoch):
     bbox_pred_dict, bbox_gt_dict = {}, {} # initialize dictionaries for computing mAP
     for b_idx, (X_seq, bbox_pred, bbox_gt, _) in enumerate(val_loader):
         # if no detections in sequence
-        if X_seq.size()[1] == 0:
+        if X_seq.size()[1] == 0 or bbox_gt.shape[1] == 0:
             print('No detections available for sequence...')
             continue
         y_seq = bbox_pred[:, :, :2]
@@ -261,7 +269,7 @@ def val(model, epoch):
         if acc is not None:
             accs.append(acc)
         # store values for computing mAP
-        bbox_pred_dict[str(b_idx)] = (y_out, bbox_pred)
+        bbox_pred_dict[str(b_idx)] = (y_out[y_out[:, 1] >= 0, :], bbox_pred[y_out[:, 1] >= 0, :])
         bbox_gt_dict[str(b_idx)] = (y_gt, bbox_gt)
 
         print('Done with sequence {} of {}...'.format(b_idx + 1, len(val_loader.dataset)))
@@ -293,8 +301,10 @@ def val(model, epoch):
         best_mota = val_mota
         # save the TrackMPNN model and the embedding net
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_' + '%.4d' % (epoch,) + '.pth'))
+        torch.save(model.state_dict(), os.path.join(args.output_dir, 'track-mpnn_best.pth'))
         if 'vis' in args.feats:
             torch.save(val_loader.dataset.embed_net.state_dict(), os.path.join(args.output_dir, 'vis-net_' + '%.4d' % (epoch,) + '.pth'))
+            torch.save(val_loader.dataset.embed_net.state_dict(), os.path.join(args.output_dir, 'vis-net_best.pth'))
 
     if 'vis' in args.feats:
         train_loader.dataset.embed_net = val_loader.dataset.embed_net # copy back the trained embedding net from the val loader
@@ -306,16 +316,9 @@ def val(model, epoch):
 if __name__ == '__main__':
     # for reproducibility
     random_seed(args.seed, args.cuda)
-
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    num_features = 3 # for one-hot category IDs
-    if '2d' in args.feats:
-        num_features += 5
-    if 'temp' in args.feats:
-        num_features += 2
-    if 'vis' in args.feats:
-        num_features += 16
-    model = TrackMPNN(nfeatures=num_features, nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
+    model = TrackMPNN(features=args.feats, ncategories=len(train_loader.dataset.class_dict), 
+        nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     if args.snapshot is not None:
         model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
@@ -324,6 +327,7 @@ if __name__ == '__main__':
 
     # optimizer for tracker
     optimizer_trk = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    scheduler = optim.lr_scheduler.StepLR(optimizer_trk, step_size=15, gamma=0.2)
 
     # BCE(Focal) loss applied to each node/edge individually
     focal_loss_node = FocalLoss(gamma=0, alpha=None, size_average=True)

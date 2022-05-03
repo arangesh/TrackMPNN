@@ -6,6 +6,7 @@ import torch.optim as optim
 
 from models.track_mpnn import TrackMPNN
 from dataset.kitti_mot import KittiMOTDataset, store_kitti_results
+from dataset.bdd100k_mot import BDD100kMOTDataset, store_bdd100k_results
 from utils.graph import initialize_graph, update_graph, prune_graph, decode_tracks
 from utils.infer_options import args
 
@@ -15,8 +16,12 @@ if 'vis' in args.feats:
     vis_snapshot = os.path.join(os.path.dirname(args.snapshot), 'vis-net_' + args.snapshot[-8:])
 else:
     vis_snapshot = None
-infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
-    args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
+if args.dataset == 'kitti':
+    infer_loader = DataLoader(KittiMOTDataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
+elif args.dataset == 'bdd100k':
+    infer_loader = DataLoader(BDD100kMOTDataset(args.dataset_root_path, 'test', args.category, args.detections, args.feats, 
+        args.embed_arch, args.cur_win_size, args.ret_win_size, vis_snapshot, False, args.cuda), **kwargs_infer)
 
 
 # random seed function (https://docs.fast.ai/dev/test.html#getting-reproducible-results)
@@ -85,7 +90,10 @@ def infer(model):
 
         # store results in KITTI format
         bbox_pred = bbox_pred[0, :, 2:].detach().cpu().numpy().astype('float32')
-        store_kitti_results(bbox_pred, y_out, infer_loader.dataset.class_dict, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
+        if args.dataset == 'kitti':
+            store_kitti_results(bbox_pred, y_out, infer_loader.dataset.class_dict, os.path.join(args.output_dir, '%.4d.txt' % (b_idx,)))
+        elif args.dataset == 'bdd100k':
+            store_bdd100k_results(bbox_pred, y_out, infer_loader.dataset.class_dict, os.path.join(args.output_dir, '%.4d.json' % (b_idx,)))
         print('Done with sequence {} out {}...\n'.format(b_idx + 1, len(infer_loader.dataset)))
 
     return
@@ -94,16 +102,9 @@ def infer(model):
 if __name__ == '__main__':
     # for reproducibility
     random_seed(args.seed, args.cuda)
-
     # get the model, load pretrained weights, and convert it into cuda for if necessary
-    num_features = 3# for one-hot category IDs
-    if '2d' in args.feats:
-        num_features += 5
-    if 'temp' in args.feats:
-        num_features += 2
-    if 'vis' in args.feats:
-        num_features += 16
-    model = TrackMPNN(nfeatures=num_features, nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
+    model = TrackMPNN(features=args.feats, ncategories=len(infer_loader.dataset.class_dict), 
+        nhidden=args.num_hidden_feats, nattheads=args.num_att_heads, msg_type=args.msg_type)
     model.load_state_dict(torch.load(args.snapshot), strict=True)
     if args.cuda:
         model.cuda()

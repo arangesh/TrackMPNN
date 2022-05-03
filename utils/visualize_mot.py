@@ -22,17 +22,17 @@ cat_ids = {cat: i for i, cat in enumerate(cats)}
 
 # adapted from https://github.com/VisualComputingInstitute/mots_tools/visualize_mots.py
 def generate_colors(N=30):
-  """
-  Generate random colors.
-  To get visually distinct colors, generate them in HSV space then
-  convert to RGB.
-  """
-  brightness = 0.7
-  hsv = [(i / N, 1, brightness) for i in range(N)]
-  colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
-  colors = list(map(lambda color: (int(255*color[0]), int(255*color[1]), int(255*color[2])), colors))
-  random.shuffle(colors)
-  return colors
+    """
+    Generate random colors.
+    To get visually distinct colors, generate them in HSV space then
+    convert to RGB.
+    """
+    brightness = 0.7
+    hsv = [(i / N, 1, brightness) for i in range(N)]
+    colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
+    colors = list(map(lambda color: (int(255*color[0]), int(255*color[1]), int(255*color[2])), colors))
+    random.shuffle(colors)
+    return colors
 
 
 def draw_bbox(img, bboxes, colors):
@@ -46,7 +46,7 @@ def draw_bbox(img, bboxes, colors):
 
 
 if __name__ == '__main__':
-    seqs = glob.glob(os.path.join(RESULT_PATH, '*.txt'))
+    seqs = glob.glob(os.path.join(RESULT_PATH, '0*.txt'))
     
     for k, seq in enumerate(seqs):
         if SAVE_VIDEO:

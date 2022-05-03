@@ -5,11 +5,11 @@ import json
 
 import torch
 
-parser = argparse.ArgumentParser('Options for testing Track-MPNN models in PyTorch...')
+parser = argparse.ArgumentParser('Options for testing TrackMPNN models in PyTorch...')
 
-parser.add_argument('--snapshot', type=str, help='use a pre-trained model snapshot')
 parser.add_argument('--dataset-root-path', type=str, default='/home/akshay/data/kitti-mot', help='path to dataset')
 parser.add_argument('--output-dir', type=str, default=None, help='output directory for model and logs')
+parser.add_argument('--snapshot', type=str, help='use a pre-trained model snapshot')
 parser.add_argument('--hungarian', action='store_true', default=False, help='decode tracks using frame-by-frame Hungarian algorithm')
 parser.add_argument('--seed', type=int, default=5, help='set seed to some constant value to reproduce experiments')
 parser.add_argument('--no-cuda', action='store_true', default=False, help='do not use cuda for training')
@@ -33,6 +33,7 @@ if os.path.exists(os.path.join(os.path.dirname(args.snapshot), 'config.json')):
     with open(os.path.join(os.path.dirname(args.snapshot), 'config.json')) as f:
         json_args = json.load(f)
     # augment infer args with training args for model consistency
+    args.dataset = json_args['dataset']
     args.category = json_args['category']
     args.detections = json_args['detections']
     args.feats = json_args['feats']
